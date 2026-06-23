@@ -4,6 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>O Quintal na Brasa - Sistema de Pedidos</title>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',sans-serif}
 :root{
@@ -111,9 +114,24 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 .fila-n{font-size:22px;font-weight:700;color:var(--dourado2)}
 .fila-l{font-size:11px;color:var(--muted)}
 .caixa-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
-.caixa-stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+.caixa-stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;cursor:pointer;transition:all .2s}
+.caixa-stat:hover{border-color:var(--dourado);background:var(--medio)}
+.caixa-stat.ativo{border-color:var(--dourado2);background:var(--medio);box-shadow:0 0 0 2px var(--dourado)}
 .caixa-stat .val{font-size:22px;font-weight:700;color:var(--dourado2)}
 .caixa-stat .lbl{font-size:11px;color:var(--muted);margin-top:4px}
+.filtro-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.filtro-chip{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--superficie);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.filtro-chip.ativo{background:var(--fogo);border-color:var(--fogo);color:#fff}
+.hist-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px}
+.hist-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.hist-nome{font-size:14px;font-weight:700;color:var(--texto)}
+.hist-pgto{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:var(--superficie);color:var(--muted)}
+.hist-pgto.pix{background:#0d2b1a;color:#5EFF8C}
+.hist-pgto.dinheiro{background:#2b1a0d;color:#F0C040}
+.hist-pgto.debito{background:#0d1a2b;color:#6BB8FF}
+.hist-pgto.credito{background:#1a0d2b;color:#CF9FFF}
+.date-input{padding:9px 12px;background:var(--superficie);border:1px solid var(--border);border-radius:10px;color:var(--texto);font-size:13px;outline:none;width:100%}
+.date-input:focus{border-color:var(--dourado)}
 .cliente-row{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:.2s}
 .cliente-row:hover{border-color:var(--dourado)}
 .cliente-row-top{display:flex;justify-content:space-between;align-items:center}
@@ -152,9 +170,30 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 .foto-preview span{color:var(--muted);font-size:13px}
 .btn-salvar{width:100%;padding:13px;background:var(--fogo);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px}
 .btn-cancelar{width:100%;padding:10px;background:var(--superficie);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer;margin-top:8px}
+.btn-fechar-conta{width:100%;padding:14px;background:#1a4d2e;border:2px solid #5EFF8C;border-radius:12px;color:#5EFF8C;font-size:15px;font-weight:700;cursor:pointer;margin-top:12px;transition:background .2s}
+.btn-fechar-conta:hover{background:#0f3320}
+.pgto-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.pgto-btn{padding:14px 8px;background:var(--superficie);border:2px solid var(--border);border-radius:12px;color:var(--texto);font-size:13px;font-weight:600;cursor:pointer;text-align:center;transition:all .2s}
+.pgto-btn.selected{background:var(--medio);border-color:var(--dourado);color:var(--dourado2)}
+.solicit-card{background:#0d2b1a;border:2px solid #5EFF8C;border-radius:14px;padding:14px;margin-bottom:12px;position:relative}
+.solicit-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.solicit-nome{font-size:15px;font-weight:700;color:#5EFF8C}
+.solicit-pgto{font-size:12px;font-weight:700;background:#1a4d2e;color:#5EFF8C;padding:3px 10px;border-radius:20px}
+.solicit-mesa{font-size:12px;color:var(--muted);margin-bottom:8px}
+.badge-notif{display:inline-block;background:var(--fogo);color:#fff;font-size:10px;font-weight:700;border-radius:20px;padding:2px 6px;margin-left:6px;vertical-align:middle;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 </style>
 </head>
 <body>
+<!-- TELA DE CONFIGURAÇÃO FIREBASE -->
+<!-- TELA DE LOADING -->
+<div id="fbLoadingScreen" style="display:flex;position:fixed;inset:0;background:var(--escuro);z-index:9998;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+  <div style="font-size:56px;animation:spin 1s linear infinite">🔥</div>
+  <div style="font-size:16px;font-weight:700;color:var(--dourado2)">O Quintal na Brasa</div>
+  <div style="font-size:13px;color:var(--muted)" id="fbLoadingMsg">Conectando ao banco de dados...</div>
+</div>
+<style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+
 <div class="app" id="app">
 
 <!-- LOGIN -->
@@ -248,15 +287,22 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
     </div>
     <button class="btn-sair" onclick="sair()">Sair</button>
   </div>
-  <div class="tabs">
+  <div class="tabs" style="overflow-x:auto;white-space:nowrap;flex-wrap:nowrap">
     <button class="tab active" onclick="abaCaixa('resumo',this)">📊 Resumo</button>
-    <button class="tab" onclick="abaCaixa('clientes',this)">👥 Clientes</button>
+    <button class="tab" onclick="abaCaixa('clientes',this)" id="tabClientes">👥 Clientes</button>
     <button class="tab" onclick="abaCaixa('cardapio',this)">🍢 Cardápio</button>
+    <button class="tab" onclick="abaCaixa('historico',this)">📋 Histórico</button>
   </div>
-  <div class="content">
+  <div class="content" style="padding-bottom:80px">
     <div id="caixaResumo"></div>
     <div id="caixaClientes" class="hidden"></div>
     <div id="caixaCardapio" class="hidden"></div>
+    <div id="caixaHistorico" class="hidden"></div>
+  </div>
+  <!-- Rodapé fixo do caixa -->
+  <div id="caixaRodape" class="hidden" style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--medio);border-top:2px solid var(--dourado);padding:14px 16px;z-index:50;display:flex;justify-content:space-between;align-items:center">
+    <span id="caixaRodapeLbl" style="font-size:13px;color:var(--muted)"></span>
+    <span id="caixaRodapeVal" style="font-size:18px;font-weight:700;color:var(--dourado2)"></span>
   </div>
 </div>
 
@@ -273,39 +319,156 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 </div>
 
 <script>
-const CARDAPIO=[
-  {id:1,nome:'Espeto Misto',desc:'Carne + frango temperados',preco:5,cat:'misto',emoji:'🍢'},
-  {id:2,nome:'Espeto Só Carne',desc:'Carne bovina temperada',preco:5,cat:'carne',emoji:'🥩'},
-  {id:3,nome:'Espeto Só Frango',desc:'Frango marinado no alho',preco:5,cat:'frango',emoji:'🍗'},
-  {id:4,nome:'Completo c/ Acompanhamentos',desc:'Espeto + baião + farofa + salada + macarrão',preco:10,cat:'misto',emoji:'🍽️'},
-  {id:5,nome:'Baião de Dois',desc:'Porção individual',preco:4,cat:'misto',emoji:'🫘'},
-  {id:6,nome:'Farofa',desc:'Farofa temperada da casa',preco:3,cat:'misto',emoji:'🌽'},
-  {id:7,nome:'Guaraná 2L',desc:'Refrigerante gelado',preco:8,cat:'bebida',emoji:'🥤'},
-  {id:8,nome:'Grape 2L',desc:'Refrigerante uva gelado',preco:8,cat:'bebida',emoji:'🍇'},
-  {id:9,nome:'Água 500ml',desc:'Garrafa gelada',preco:3,cat:'bebida',emoji:'💧'},
+// ── FIREBASE ────────────────────────────────────────────────────────────
+let db = null;
+
+// Dados reativos — preenchidos pelos listeners do Firebase
+let CARDAPIO  = [];
+let PEDIDOS   = [];
+let CATEGORIAS= [];
+let SOLICITACOES = [];
+let pedidoIdSeq  = 1;
+let clienteIdSeq = 1;
+
+const CARDAPIO_INICIAL = [
+  {id:'p1',nome:'Espeto Misto',desc:'Carne + frango temperados',preco:5,cat:'misto',emoji:'🍢'},
+  {id:'p2',nome:'Espeto Só Carne',desc:'Carne bovina temperada',preco:5,cat:'carne',emoji:'🥩'},
+  {id:'p3',nome:'Espeto Só Frango',desc:'Frango marinado no alho',preco:5,cat:'frango',emoji:'🍗'},
+  {id:'p4',nome:'Completo c/ Acompanhamentos',desc:'Espeto + baião + farofa + salada + macarrão',preco:10,cat:'misto',emoji:'🍽️'},
+  {id:'p5',nome:'Baião de Dois',desc:'Porção individual',preco:4,cat:'misto',emoji:'🫘'},
+  {id:'p6',nome:'Farofa',desc:'Farofa temperada da casa',preco:3,cat:'misto',emoji:'🌽'},
+  {id:'p7',nome:'Guaraná 2L',desc:'Refrigerante gelado',preco:8,cat:'bebida',emoji:'🥤'},
+  {id:'p8',nome:'Grape 2L',desc:'Refrigerante uva gelado',preco:8,cat:'bebida',emoji:'🍇'},
+  {id:'p9',nome:'Água 500ml',desc:'Garrafa gelada',preco:3,cat:'bebida',emoji:'💧'},
+];
+const CATEGORIAS_INICIAIS = [
+  {id:'misto', nome:'Misto'},
+  {id:'carne', nome:'Só Carne'},
+  {id:'frango', nome:'Só Frango'},
+  {id:'bebida', nome:'Bebidas'},
 ];
 
-let PEDIDOS=[
-  {id:1,clienteId:'11999990001',cliente:'João Silva',mesa:'2',itens:[{nome:'Espeto Misto',qty:3,preco:5},{nome:'Guaraná 2L',qty:1,preco:8}],status:'aguardando',obs:'',hora:'14:32',pago:false},
-  {id:2,clienteId:'11999990002',cliente:'Maria Souza',mesa:'5',itens:[{nome:'Completo c/ Acompanhamentos',qty:2,preco:10},{nome:'Água 500ml',qty:2,preco:3}],status:'fazendo',obs:'Bem passado por favor',hora:'14:35',pago:false},
-];
-let pedidoIdSeq=3;
-let clienteIdSeq=1; // sequencial de 4 dígitos para clientes
+// ── Helpers Firebase ─────────────────────────────────────────────────────
+function fbKey(){ return db.ref().push().key; }
+
+function fbSet(path, data){ return db.ref(path).set(data); }
+function fbUpdate(path, data){ return db.ref(path).update(data); }
+function fbRemove(path){ return db.ref(path).remove(); }
+
+// Converte snapshot do Firebase para array, adicionando a chave como .fbKey
+function snap2arr(snapshot){
+  if(!snapshot.exists()) return [];
+  return Object.entries(snapshot.val()).map(([k,v])=>({...v, fbKey:k}));
+}
+
+// ── Inicialização ────────────────────────────────────────────────────────
+function iniciarFirebase(cfg){
+  try{
+    if(firebase.apps.length) firebase.app().delete();
+  }catch(e){}
+  firebase.initializeApp(cfg);
+  db = firebase.database();
+
+  document.getElementById('fbLoadingScreen').style.display='flex';
+  document.getElementById('fbLoadingMsg').textContent='Conectando ao banco de dados...';
+
+  // Verifica conectividade
+  db.ref('.info/connected').once('value', snap=>{
+    if(!snap.val()){
+      document.getElementById('fbLoadingMsg').textContent='⚠️ Sem conexão com a internet. Verifique sua conexão e recarregue.';
+      return;
+    }
+    registrarListeners();
+  });
+}
+
+function registrarListeners(){
+  let prontos=0;
+  function checa(){ if(++prontos===4){ document.getElementById('fbLoadingScreen').style.display='none'; } }
+
+  // CARDÁPIO
+  db.ref('cardapio').on('value', snap=>{
+    CARDAPIO = snap.exists() ? snap2arr(snap) : [];
+    if(!snap.exists()){ // primeira vez: popula com dados iniciais
+      const upd={};
+      CARDAPIO_INICIAIS.forEach(p=>{ upd[p.id]=p; });
+      fbSet('cardapio', upd);
+    }
+    if(roleAtual==='cliente') renderCardapio();
+    if(abaCaixaAtiva==='cardapio') renderCardapioCaixa();
+    checa();
+  });
+
+  // CATEGORIAS
+  db.ref('categorias').on('value', snap=>{
+    CATEGORIAS = snap.exists() ? snap2arr(snap) : [];
+    if(!snap.exists()){
+      const upd={};
+      CATEGORIAS_INICIAIS.forEach(c=>{ upd[c.id]=c; });
+      fbSet('categorias', upd);
+    }
+    renderCatBtns();
+    checa();
+  });
+
+  // PEDIDOS
+  db.ref('pedidos').on('value', snap=>{
+    PEDIDOS = snap.exists() ? snap2arr(snap) : [];
+    // Atualiza seqId
+    if(PEDIDOS.length>0){
+      const maxId=Math.max(...PEDIDOS.map(p=>typeof p.id==='number'?p.id:0));
+      pedidoIdSeq=maxId+1;
+    }
+    // Re-render conforme tela ativa
+    if(roleAtual==='cliente'){ renderComanda(); verificarNotificacoes(); }
+    if(roleAtual==='churrasqueiro') renderChurrasqueiro();
+    if(roleAtual==='caixa'){ renderCaixa(); atualizarBadgeCaixa(); }
+    checa();
+  });
+
+  // SOLICITAÇÕES
+  db.ref('solicitacoes').on('value', snap=>{
+    SOLICITACOES = snap.exists() ? snap2arr(snap) : [];
+    atualizarBadgeCaixa();
+    if(roleAtual==='caixa'&&abaCaixaAtiva==='clientes') renderCaixaClientes();
+    checa();
+  });
+}
+
+// Substitui o polling de notificações por verificação nos dados já recebidos
+function verificarNotificacoes(){
+  if(roleAtual!=='cliente') return;
+  const prontos=PEDIDOS.filter(p=>p.clienteId===clienteIdAtual&&p.status==='pronto');
+  prontos.forEach(p=>{
+    if(!_jaNotificados.has(p.id)){
+      _jaNotificados.add(p.id);
+      mostrarToast('🍢 Pedido #'+p.id+' pronto! Pode retirar.');
+    }
+  });
+}
+
+
+
+// ── Configuração Firebase (quintal-na-brasa) ─────────────────────────────
+const _FB_CONFIG = {
+  apiKey:            "AIzaSyBGRL-vdzjfIlMPWNFWZoB40K2W-26Nc-A",
+  authDomain:        "quintal-na-brasa.firebaseapp.com",
+  databaseURL:       "https://quintal-na-brasa-default-rtdb.firebaseio.com",
+  projectId:         "quintal-na-brasa",
+  storageBucket:     "quintal-na-brasa.firebasestorage.app",
+  messagingSenderId: "524671925554",
+  appId:             "1:524671925554:web:1c12118e3f5c3cf5e36b2b"
+};
+
+window.addEventListener('load', ()=>{ iniciarFirebase(_FB_CONFIG); });
+// ────────────────────────────────────────────────────────────────────────
+
 let roleAtual=null,clienteNome='',clienteMesa='',clienteCelular='',clienteIdAtual='';
 let carrinho={};
 let catAtiva='todos',abaChurrasAtiva='fila',abaCaixaAtiva='resumo',clienteAbaAtiva='cardapio';
 let _jaNotificados=new Set();
 let _pollingInterval=null;
 const PINOS={churrasqueiro:'1234',caixa:'4321'};
-
-// Categorias dinâmicas: {id, nome}
-let CATEGORIAS=[
-  {id:'misto',   nome:'Misto'},
-  {id:'carne',   nome:'Só Carne'},
-  {id:'frango',  nome:'Só Frango'},
-  {id:'bebida',  nome:'Bebidas'},
-];
-let _catIdSeq=100; // ids para novas categorias
 
 function renderCatBtns(){
   const cont=document.getElementById('catBtnsContainer');
@@ -426,46 +589,39 @@ function mostrarToast(msg){
 }
 
 function iniciarPolling(){
+  // Com Firebase, não precisamos de polling — as notificações chegam pelo listener de PEDIDOS
+  // Apenas inicializa o set de já notificados com os prontos atuais
   _jaNotificados=new Set(
     PEDIDOS.filter(p=>p.clienteId===clienteIdAtual&&p.status==='pronto').map(p=>p.id)
   );
-  _pollingInterval=setInterval(()=>{
-    if(roleAtual!=='cliente') return;
-    const prontos=PEDIDOS.filter(p=>p.clienteId===clienteIdAtual&&p.status==='pronto');
-    prontos.forEach(p=>{
-      if(!_jaNotificados.has(p.id)){
-        _jaNotificados.add(p.id);
-        mostrarToast('🍢 Pedido #'+p.id+' pronto! Pode retirar.');
-      }
-    });
-  },2000);
 }
 
 function pararPolling(){
-  clearInterval(_pollingInterval);
-  _pollingInterval=null;
+  // Nada a fazer — Firebase listener continua ativo mas verificarNotificacoes
+  // só age quando roleAtual==='cliente'
 }
 
 function sair(){
+  // Remove solicitação pendente deste cliente no Firebase
+  if(clienteIdAtual) fbRemove('solicitacoes/'+clienteIdAtual);
+
   roleAtual=null;
   clienteNome='';clienteCelular='';clienteIdAtual='';clienteMesa='';
   carrinho={};
   clienteAbaAtiva='cardapio';
-  // Reset login form
+  _jaNotificados=new Set();
   document.getElementById('pinSection').classList.add('hidden');
   document.getElementById('nomeSection').classList.add('hidden');
   document.getElementById('pinSenhaSection').classList.add('hidden');
   document.getElementById('nomeInput').value='';
   document.getElementById('celularInput').value='';
   document.getElementById('pinInput').value='';
-  // Reset client tabs to cardapio
   document.getElementById('clienteCardapio').classList.remove('hidden');
   document.getElementById('clienteComanda').classList.add('hidden');
   document.getElementById('totalBar').classList.add('hidden');
   document.querySelectorAll('#clienteScreen .tab').forEach((t,i)=>{
     t.classList.toggle('active', i===0);
   });
-  pararPolling();
   mostrarTela('loginScreen');
 }
 
@@ -581,7 +737,137 @@ function renderComanda(){
     html+=`<div class="total-geral-box"><span class="total-geral-label">💳 Total da comanda</span><span class="total-geral-valor">R$ ${grand.toFixed(2).replace('.',',')}</span></div>`;
   }
 
+  // Botão de solicitar fechamento — só aparece se há pedidos enviados e não pago
+  const temPedidosAbertos=meusPedidos.some(p=>!p.pago);
+  const jasolicitou=SOLICITACOES.some(s=>s.clienteId===clienteIdAtual);
+  if(temPedidosAbertos && !jasolicitou){
+    html+=`<button class="btn-fechar-conta" onclick="abrirModalPagamento()">🧾 Solicitar Fechamento da Conta</button>`;
+  } else if(jasolicitou){
+    html+=`<div style="text-align:center;padding:14px;background:#0d2b1a;border:2px solid #5EFF8C;border-radius:12px;margin-top:12px;color:#5EFF8C;font-weight:700">✅ Solicitação enviada ao caixa!<br><span style="font-size:12px;font-weight:400;color:var(--muted)">Aguarde o caixa confirmar o fechamento.</span></div>`;
+  }
+
   cont.innerHTML=html;
+}
+
+let _pgtoSelecionado=null;
+
+function abrirModalPagamento(){
+  _pgtoSelecionado=null;
+  const meusPedidos=PEDIDOS.filter(p=>p.clienteId===clienteIdAtual&&!p.pago);
+  const total=meusPedidos.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0)+totalCarrinho();
+  const overlay=document.createElement('div');
+  overlay.className='modal-prod-overlay';
+  overlay.id='modalPgtoOverlay';
+  overlay.innerHTML=`
+    <div class="modal-prod-box">
+      <div class="modal-title">🧾 Fechar Conta</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Total a pagar: <strong style="color:var(--dourado2);font-size:17px">R$ ${total.toFixed(2).replace('.',',')}</strong></p>
+      <div class="form-label">Como vai pagar?</div>
+      <div class="pgto-grid">
+        <button class="pgto-btn" id="pgto-dinheiro" onclick="selecionarPgto('Dinheiro')">💵<br>Dinheiro</button>
+        <button class="pgto-btn" id="pgto-pix" onclick="selecionarPgto('Pix')">📱<br>Pix</button>
+        <button class="pgto-btn" id="pgto-debito" onclick="selecionarPgto('Débito')">💳<br>Cartão Débito</button>
+        <button class="pgto-btn" id="pgto-credito" onclick="selecionarPgto('Crédito')">💳<br>Cartão Crédito</button>
+      </div>
+      <button class="btn-salvar" onclick="confirmarSolicitacao()" style="margin-top:4px">📨 Enviar para o Caixa</button>
+      <button class="btn-cancelar" onclick="document.getElementById('modalPgtoOverlay').remove()">Cancelar</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function selecionarPgto(forma){
+  _pgtoSelecionado=forma;
+  document.querySelectorAll('.pgto-btn').forEach(b=>b.classList.remove('selected'));
+  const ids={Dinheiro:'pgto-dinheiro',Pix:'pgto-pix',Débito:'pgto-debito',Crédito:'pgto-credito'};
+  const el=document.getElementById(ids[forma]);
+  if(el) el.classList.add('selected');
+}
+
+function confirmarSolicitacao(){
+  if(!_pgtoSelecionado){alert('Selecione a forma de pagamento!');return;}
+  const meusPedidos=PEDIDOS.filter(p=>p.clienteId===clienteIdAtual&&!p.pago);
+  const itensTodos=[];
+  meusPedidos.forEach(p=>p.itens.forEach(i=>itensTodos.push(i)));
+  if(qtdCarrinho()>0){
+    Object.keys(carrinho).filter(k=>carrinho[k]>0).forEach(k=>{
+      const it=CARDAPIO.find(i=>i.id==k);
+      if(it) itensTodos.push({nome:it.nome,qty:carrinho[k],preco:it.preco});
+    });
+  }
+  const total=itensTodos.reduce((s,i)=>s+i.preco*i.qty,0);
+  const agora=new Date();
+  const hora=agora.getHours().toString().padStart(2,'0')+':'+agora.getMinutes().toString().padStart(2,'0');
+  const sol={clienteId:clienteIdAtual,nome:clienteNome,mesa:clienteMesa,itens:itensTodos,total,pagamento:_pgtoSelecionado,hora};
+  fbSet('solicitacoes/'+clienteIdAtual, sol);
+  document.getElementById('modalPgtoOverlay').remove();
+  renderComanda();
+}
+
+function atualizarBadgeCaixa(){
+  const tab=document.getElementById('tabClientes');
+  if(!tab) return;
+  const n=SOLICITACOES.length;
+  tab.innerHTML=`👥 Clientes${n>0?`<span class="badge-notif">${n}</span>`:''}`;
+}
+
+function renderCaixaClientes(){
+  const clienteIds=[...new Set(PEDIDOS.map(p=>p.clienteId))];
+  let html='';
+
+  // Solicitações de fechamento pendentes no topo
+  if(SOLICITACOES.length>0){
+    html+=`<div class="section-title" style="color:#5EFF8C;margin-bottom:10px">🔔 Solicitações de Fechamento (${SOLICITACOES.length})</div>`;
+    SOLICITACOES.forEach((s,idx)=>{
+      html+=`<div class="solicit-card">
+        <div class="solicit-header">
+          <span class="solicit-nome">👤 ${s.nome}</span>
+          <span class="solicit-pgto">${s.pagamento}</span>
+        </div>
+        <div class="solicit-mesa">Mesa ${s.mesa} · ${s.hora}</div>
+        <div style="margin-bottom:8px">
+          ${s.itens.map(i=>`<div class="linha-item" style="font-size:13px"><span>${i.qty}x ${i.nome}</span><span style="color:var(--dourado2)">R$ ${(i.preco*i.qty).toFixed(2).replace('.',',')}</span></div>`).join('')}
+        </div>
+        <div class="linha-total"><span style="font-size:14px">Total</span><span style="color:#5EFF8C;font-size:16px;font-weight:700">R$ ${s.total.toFixed(2).replace('.',',')}</span></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button onclick="confirmarFechamentoCaixa('${s.clienteId}',${idx})" style="flex:1;padding:11px;background:#1a4d2e;border:1.5px solid #5EFF8C;border-radius:10px;color:#5EFF8C;font-weight:700;cursor:pointer">✅ Confirmar e Fechar</button>
+          <button onclick="recusarSolicitacao(${idx})" style="padding:11px 14px;background:#3d0a0a;border:1px solid #7a1a1a;border-radius:10px;color:#ff6b6b;cursor:pointer">✖</button>
+        </div>
+      </div>`;
+    });
+    html+=`<div class="section-title" style="margin-top:16px;margin-bottom:10px">👥 Todos os Clientes</div>`;
+  }
+
+  html+=clienteIds.map(cid=>{
+    const ped=PEDIDOS.filter(p=>p.clienteId===cid);
+    const nome=ped[0].cliente;
+    const tot=ped.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+    const pago=ped.every(p=>p.pago);
+    return `<div class="cliente-row" onclick="verCliente('${cid}')">
+      <div class="cliente-row-top">
+        <span class="cliente-rname">${nome}</span>
+        <span class="cliente-rval" ${pago?'style="color:#5EFF8C"':''}>R$ ${tot.toFixed(2).replace('.',',')}</span>
+      </div>
+      <div class="cliente-rsub">${ped.length} pedido(s) · ${pago?'✅ Pago':'⏳ Em aberto'}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('caixaClientes').innerHTML=html;
+}
+
+function confirmarFechamentoCaixa(clienteId, idx){
+  const s=SOLICITACOES[idx];
+  const agora=new Date();
+  const dataFecha=agora.toISOString().slice(0,10);
+  PEDIDOS.filter(p=>p.clienteId===clienteId).forEach(p=>{
+    if(p.fbKey) fbUpdate('pedidos/'+p.fbKey,{pago:true,pagamento:s.pagamento,dataFecha});
+  });
+  fbRemove('solicitacoes/'+clienteId);
+  mostrarToast('✅ Conta fechada com sucesso!');
+}
+
+function recusarSolicitacao(idx){
+  const s=SOLICITACOES[idx];
+  if(s) fbRemove('solicitacoes/'+s.clienteId);
 }
 
 function fazerPedido(){
@@ -591,7 +877,9 @@ function fazerPedido(){
   const obs=document.getElementById('obsInput')?document.getElementById('obsInput').value:'';
   const agora=new Date();
   const hora=agora.getHours().toString().padStart(2,'0')+':'+agora.getMinutes().toString().padStart(2,'0');
-  PEDIDOS.push({id:pedidoIdSeq++,clienteId:clienteIdAtual,cliente:clienteNome,mesa:clienteMesa,itens,status:'aguardando',obs,hora,pago:false});
+  const key=fbKey();
+  const pedido={id:pedidoIdSeq++,clienteId:clienteIdAtual,cliente:clienteNome,mesa:clienteMesa,itens,status:'aguardando',obs,hora,pago:false};
+  fbSet('pedidos/'+key, pedido);
   carrinho={};
   renderComanda();
   atualizarTotalBar();
@@ -652,9 +940,13 @@ function mudarStatus(id,novoStatus){
     }
   }
   const p=PEDIDOS.find(x=>x.id===id);
-  if(p) p.status=novoStatus;
+  if(p&&p.fbKey){
+    fbUpdate('pedidos/'+p.fbKey,{status:novoStatus});
+  }
   renderChurrasqueiro();
 }
+
+let _filtroResumo=null; // null=todos, 'aberto','fechado'
 
 function abaCaixa(aba,el){
   abaCaixaAtiva=aba;
@@ -663,47 +955,84 @@ function abaCaixa(aba,el){
   document.getElementById('caixaResumo').classList.toggle('hidden',aba!=='resumo');
   document.getElementById('caixaClientes').classList.toggle('hidden',aba!=='clientes');
   document.getElementById('caixaCardapio').classList.toggle('hidden',aba!=='cardapio');
+  document.getElementById('caixaHistorico').classList.toggle('hidden',aba!=='historico');
+  // Rodapé só aparece em clientes e historico
+  document.getElementById('caixaRodape').classList.toggle('hidden',aba==='resumo'||aba==='cardapio');
   if(aba==='cardapio') renderCardapioCaixa();
-  else renderCaixa();
+  else if(aba==='clientes'){ _filtroResumo=null; renderCaixaClientes(); }
+  else if(aba==='historico') renderHistorico();
+  else { _filtroResumo=null; renderCaixa(); }
 }
 
 function renderCaixa(){
+  // Agrupamos pedidos por clienteId para contar comandas únicas
+  const clienteIds=[...new Set(PEDIDOS.map(p=>p.clienteId))];
   const totalAberto=PEDIDOS.filter(p=>!p.pago).reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
   const totalPago=PEDIDOS.filter(p=>p.pago).reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+  const qtdAberto=clienteIds.filter(cid=>PEDIDOS.filter(p=>p.clienteId===cid).some(p=>!p.pago)).length;
+  const qtdFechado=clienteIds.filter(cid=>PEDIDOS.filter(p=>p.clienteId===cid).every(p=>p.pago)).length;
+
+  // Filtro ativo
+  let lista=PEDIDOS.slice().reverse();
+  let rodapeLbl='Total geral';
+  let rodapeVal=totalAberto+totalPago;
+  if(_filtroResumo==='aberto'){
+    lista=lista.filter(p=>!p.pago);
+    rodapeLbl='Total em aberto';rodapeVal=totalAberto;
+  } else if(_filtroResumo==='fechado'){
+    lista=lista.filter(p=>p.pago);
+    rodapeLbl='Total pago';rodapeVal=totalPago;
+  }
+
   document.getElementById('caixaResumo').innerHTML=`
     <div class="caixa-stat-grid">
-      <div class="caixa-stat"><div class="val">R$&nbsp;${totalAberto.toFixed(2).replace('.',',')}</div><div class="lbl">Em aberto</div></div>
-      <div class="caixa-stat"><div class="val" style="color:#5EFF8C">R$&nbsp;${totalPago.toFixed(2).replace('.',',')}</div><div class="lbl">Já pago hoje</div></div>
-      <div class="caixa-stat"><div class="val">${PEDIDOS.filter(p=>!p.pago).length}</div><div class="lbl">Comandas abertas</div></div>
-      <div class="caixa-stat"><div class="val">${PEDIDOS.filter(p=>p.pago).length}</div><div class="lbl">Contas fechadas</div></div>
+      <div class="caixa-stat${_filtroResumo===null?' ativo':''}" onclick="filtroResumo(null)">
+        <div class="val">R$&nbsp;${totalAberto.toFixed(2).replace('.',',')}</div><div class="lbl">Em aberto</div>
+      </div>
+      <div class="caixa-stat${_filtroResumo==='pago'?' ativo':''}" onclick="filtroResumo('pago')">
+        <div class="val" style="color:#5EFF8C">R$&nbsp;${totalPago.toFixed(2).replace('.',',')}</div><div class="lbl">Já pago hoje</div>
+      </div>
+      <div class="caixa-stat${_filtroResumo==='aberto'?' ativo':''}" onclick="filtroResumo('aberto')">
+        <div class="val">${qtdAberto}</div><div class="lbl">Comandas abertas</div>
+      </div>
+      <div class="caixa-stat${_filtroResumo==='fechado'?' ativo':''}" onclick="filtroResumo('fechado')">
+        <div class="val">${qtdFechado}</div><div class="lbl">Contas fechadas</div>
+      </div>
     </div>
-    <div class="section-title">Pedidos recentes</div>
-    ${PEDIDOS.slice().reverse().map(p=>{
+    ${_filtroResumo!==null?`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="section-title" style="margin:0">${_filtroResumo==='aberto'?'⏳ Comandas Abertas':_filtroResumo==='fechado'?'✅ Contas Fechadas':'💰 Já Pago Hoje'}</div>
+      <button onclick="filtroResumo(null)" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer">✕ Limpar</button>
+    </div>`:`<div class="section-title">Pedidos recentes</div>`}
+    ${lista.length===0?`<div class="empty-state"><div class="empty-icon">📋</div><p>Nenhum pedido aqui</p></div>`:
+    lista.map(p=>{
       const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
       const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:p.status==='fazendo'?['badge-fazendo','Fazendo']:['badge-pronto','Pronto'];
       return `<div class="comanda-card" style="margin-bottom:8px">
         <div class="comanda-header">
           <span class="comanda-nome">${p.cliente} · Mesa ${p.mesa}</span>
-          ${p.pago?'<span class="tag-pago">PAGO</span>':`<span class="badge ${bc}">${bt}</span>`}
+          ${p.pago?`<span class="tag-pago">PAGO${p.pagamento?' · '+p.pagamento:''}</span>`:`<span class="badge ${bc}">${bt}</span>`}
         </div>
         <div style="font-size:12px;color:var(--muted)">#${p.id} · ${p.hora} · ${p.itens.length} item(ns)</div>
         <div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R$ ${tot.toFixed(2).replace('.',',')}</div>
       </div>`;
     }).join('')}`;
-  const clienteIds=[...new Set(PEDIDOS.map(p=>p.clienteId))];
-  document.getElementById('caixaClientes').innerHTML=clienteIds.map(cid=>{
-    const ped=PEDIDOS.filter(p=>p.clienteId===cid);
-    const nome=ped[0].cliente;
-    const tot=ped.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
-    const pago=ped.every(p=>p.pago);
-    return `<div class="cliente-row" onclick="verCliente('${cid}')">
-      <div class="cliente-row-top">
-        <span class="cliente-rname">${nome}</span>
-        <span class="cliente-rval" ${pago?'style="color:#5EFF8C"':''}>R$ ${tot.toFixed(2).replace('.',',')}</span>
-      </div>
-      <div class="cliente-rsub">${ped.length} pedido(s) · ${pago?'✅ Pago':'⏳ Em aberto'}</div>
-    </div>`;
-  }).join('');
+
+  // Rodapé (só quando filtro ativo no resumo)
+  if(_filtroResumo!==null){
+    document.getElementById('caixaRodape').classList.remove('hidden');
+    document.getElementById('caixaRodapeLbl').textContent=rodapeLbl+' ('+lista.length+' pedido'+(lista.length!==1?'s':'')+')';
+    document.getElementById('caixaRodapeVal').textContent='R$ '+rodapeVal.toFixed(2).replace('.',',');
+  } else {
+    document.getElementById('caixaRodape').classList.add('hidden');
+  }
+
+  renderCaixaClientes();
+  atualizarBadgeCaixa();
+}
+
+function filtroResumo(tipo){
+  _filtroResumo= _filtroResumo===tipo ? null : tipo;
+  renderCaixa();
 }
 
 function verCliente(cid){
@@ -724,16 +1053,21 @@ function verCliente(cid){
 }
 
 function fecharConta(){
-  PEDIDOS.filter(p=>p.clienteId===window._modalClienteId).forEach(p=>p.pago=true);
+  const agora=new Date();
+  const dataFecha=agora.toISOString().slice(0,10);
+  PEDIDOS.filter(p=>p.clienteId===window._modalClienteId).forEach(p=>{
+    if(p.fbKey) fbUpdate('pedidos/'+p.fbKey,{pago:true,dataFecha});
+  });
   const nome=PEDIDOS.find(p=>p.clienteId===window._modalClienteId)?.cliente||'cliente';
-  fecharModal();renderCaixa();alert('✅ Conta de '+nome+' fechada!');
+  fecharModal();
+  mostrarToast('✅ Conta de '+nome+' fechada!');
 }
 function fecharModal(){
   document.getElementById('modalOverlay').classList.add('hidden');
 }
 
 // ── GESTÃO DE CARDÁPIO (CAIXA) ─────────────────────────────────────────
-let _prodIdSeq = CARDAPIO.length + 1;
+let _prodIdSeq = 1;
 let _prodEditId = null;
 let _fotoBase64 = null;
 
@@ -774,11 +1108,9 @@ function adicionarCategoria(){
   const input=document.getElementById('novaCatNome');
   const nome=input.value.trim();
   if(!nome){alert('Digite o nome da categoria!');return;}
-  const id='cat_'+(_catIdSeq++);
-  CATEGORIAS.push({id,nome});
+  const id='cat_'+Date.now();
+  fbSet('categorias/'+id, {id, nome});
   input.value='';
-  renderCardapioCaixa();
-  renderCatBtns();
 }
 
 function excluirCategoria(id){
@@ -786,11 +1118,8 @@ function excluirCategoria(id){
   const emUso=CARDAPIO.some(p=>p.cat===id);
   if(emUso){alert(`A categoria "${c?.nome}" está em uso por produtos. Mude a categoria deles antes de excluir.`);return;}
   if(!confirm(`Excluir categoria "${c?.nome}"?`)) return;
-  const idx=CATEGORIAS.findIndex(x=>x.id===id);
-  if(idx>=0) CATEGORIAS.splice(idx,1);
+  fbRemove('categorias/'+id);
   if(catAtiva===id) catAtiva='todos';
-  renderCardapioCaixa();
-  renderCatBtns();
 }
 
 function abrirModalProduto(id){
@@ -849,23 +1178,27 @@ function salvarProduto(){
   if(!nome){alert('Digite o nome do produto!');return;}
   if(isNaN(preco)||preco<0){alert('Preço inválido!');return;}
   if(_prodEditId){
-    const p = CARDAPIO.find(x=>x.id===_prodEditId);
-    if(p){p.nome=nome;p.desc=desc;p.preco=preco;p.cat=cat;p.emoji=emoji;if(_fotoBase64)p.foto=_fotoBase64;}
+    // Edição — encontra fbKey do produto
+    const p=CARDAPIO.find(x=>x.id===_prodEditId);
+    const fbk=p?.fbKey||_prodEditId;
+    const upd={id:_prodEditId,nome,desc,preco,cat,emoji};
+    if(_fotoBase64) upd.foto=_fotoBase64;
+    else if(p?.foto) upd.foto=p.foto;
+    fbSet('cardapio/'+fbk, upd);
   } else {
-    CARDAPIO.push({id:_prodIdSeq++,nome,desc,preco,cat,emoji,foto:_fotoBase64||null});
+    const key=fbKey();
+    const prod={id:key,nome,desc,preco,cat,emoji};
+    if(_fotoBase64) prod.foto=_fotoBase64;
+    fbSet('cardapio/'+key, prod);
   }
   fecharModalProduto();
-  renderCardapioCaixa();
-  renderCardapio(); // refresh client view too
 }
 
 function excluirProduto(id){
-  const p = CARDAPIO.find(x=>x.id===id);
+  const p=CARDAPIO.find(x=>x.id===id);
   if(!confirm(`Excluir "${p?.nome}"?`)) return;
-  const idx = CARDAPIO.findIndex(x=>x.id===id);
-  if(idx>=0) CARDAPIO.splice(idx,1);
-  renderCardapioCaixa();
-  renderCardapio();
+  const fbk=p?.fbKey||id;
+  fbRemove('cardapio/'+fbk);
 }
 
 function fecharModalProduto(){
@@ -873,6 +1206,115 @@ function fecharModalProduto(){
   if(el) el.remove();
   _fotoBase64 = null;
   _prodEditId = null;
+}
+// ───────────────────────────────────────────────────────────────────────
+
+// ── HISTÓRICO ──────────────────────────────────────────────────────────
+let _histFiltroData={ini:'',fim:''};
+let _histFiltroPgto='todos';
+
+function renderHistorico(){
+  const hoje=new Date().toISOString().slice(0,10);
+  const cont=document.getElementById('caixaHistorico');
+
+  // Pedidos pagos com data de fechamento
+  let pedidosPagos=PEDIDOS.filter(p=>p.pago);
+
+  cont.innerHTML=`
+    <!-- Filtro de datas -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:14px">
+      <div class="section-title" style="margin-bottom:10px">📅 Filtrar por período</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label class="form-label">De</label>
+          <input type="date" class="date-input" id="histDtIni" value="${_histFiltroData.ini||''}" onchange="aplicarFiltroHist()">
+        </div>
+        <div>
+          <label class="form-label">Até</label>
+          <input type="date" class="date-input" id="histDtFim" value="${_histFiltroData.fim||''}" onchange="aplicarFiltroHist()">
+        </div>
+      </div>
+      <div class="section-title" style="margin-bottom:8px">💳 Forma de pagamento</div>
+      <div class="filtro-row">
+        <button class="filtro-chip${_histFiltroPgto==='todos'?' ativo':''}" onclick="filtroHistPgto('todos')">Todos</button>
+        <button class="filtro-chip${_histFiltroPgto==='Dinheiro'?' ativo':''}" onclick="filtroHistPgto('Dinheiro')">💵 Dinheiro</button>
+        <button class="filtro-chip${_histFiltroPgto==='Pix'?' ativo':''}" onclick="filtroHistPgto('Pix')">📱 Pix</button>
+        <button class="filtro-chip${_histFiltroPgto==='Débito'?' ativo':''}" onclick="filtroHistPgto('Débito')">💳 Débito</button>
+        <button class="filtro-chip${_histFiltroPgto==='Crédito'?' ativo':''}" onclick="filtroHistPgto('Crédito')">💳 Crédito</button>
+      </div>
+      ${(_histFiltroData.ini||_histFiltroData.fim||_histFiltroPgto!=='todos')?
+        `<button onclick="limparFiltroHist()" style="font-size:12px;color:var(--fogo2);background:none;border:none;cursor:pointer;margin-top:4px">✕ Limpar filtros</button>`:''}
+    </div>
+    <div id="histLista"></div>`;
+
+  aplicarFiltroHist();
+}
+
+function aplicarFiltroHist(){
+  const ini=document.getElementById('histDtIni')?.value||'';
+  const fim=document.getElementById('histDtFim')?.value||'';
+  _histFiltroData={ini,fim};
+
+  // Agrupa por cliente (clienteId único)
+  const clienteIds=[...new Set(PEDIDOS.filter(p=>p.pago).map(p=>p.clienteId))];
+  let grupos=clienteIds.map(cid=>{
+    const peds=PEDIDOS.filter(p=>p.clienteId===cid&&p.pago);
+    const dataFecha=peds[0]?.dataFecha||'';
+    const pagamento=peds[0]?.pagamento||'—';
+    const total=peds.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+    const itens=[];
+    peds.forEach(p=>p.itens.forEach(i=>itens.push(i)));
+    return {cid,nome:peds[0].cliente,mesa:peds[0].mesa,hora:peds[peds.length-1].hora,dataFecha,pagamento,total,itens,peds};
+  });
+
+  // Filtro data
+  if(ini) grupos=grupos.filter(g=>g.dataFecha>=ini);
+  if(fim) grupos=grupos.filter(g=>g.dataFecha<=fim);
+  // Filtro pagamento
+  if(_histFiltroPgto!=='todos') grupos=grupos.filter(g=>g.pagamento===_histFiltroPgto);
+
+  // Ordena por data desc depois hora desc
+  grupos.sort((a,b)=>(b.dataFecha+b.hora).localeCompare(a.dataFecha+a.hora));
+
+  const totalGeral=grupos.reduce((s,g)=>s+g.total,0);
+  const cont=document.getElementById('histLista');
+
+  if(grupos.length===0){
+    cont.innerHTML=`<div class="empty-state"><div class="empty-icon">📋</div><p>Nenhum registro encontrado.</p></div>`;
+    document.getElementById('caixaRodape').classList.add('hidden');
+    return;
+  }
+
+  const pgtoClass={'Dinheiro':'dinheiro','Pix':'pix','Débito':'debito','Crédito':'credito'};
+
+  cont.innerHTML=grupos.map(g=>`
+    <div class="hist-card">
+      <div class="hist-header">
+        <span class="hist-nome">👤 ${g.nome} · Mesa ${g.mesa}</span>
+        <span class="hist-pgto ${pgtoClass[g.pagamento]||''}">${g.pagamento}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${g.dataFecha?g.dataFecha.split('-').reverse().join('/'):'s/data'} · ${g.hora}</div>
+      <div style="margin-bottom:6px">
+        ${g.itens.map(i=>`<div class="linha-item" style="font-size:13px"><span>${i.qty}x ${i.nome}</span><span style="color:var(--dourado2)">R$ ${(i.preco*i.qty).toFixed(2).replace('.',',')}</span></div>`).join('')}
+      </div>
+      <div class="linha-total"><span>Total</span><span style="color:var(--dourado2);font-weight:700">R$ ${g.total.toFixed(2).replace('.',',')}</span></div>
+    </div>`).join('');
+
+  // Rodapé
+  document.getElementById('caixaRodape').classList.remove('hidden');
+  document.getElementById('caixaRodapeLbl').textContent=`${grupos.length} conta${grupos.length!==1?'s':''} fechada${grupos.length!==1?'s':''}`;
+  document.getElementById('caixaRodapeVal').textContent='R$ '+totalGeral.toFixed(2).replace('.',',');
+}
+
+function filtroHistPgto(pgto){
+  _histFiltroPgto=pgto;
+  renderHistorico();
+}
+
+function limparFiltroHist(){
+  _histFiltroData={ini:'',fim:''};
+  _histFiltroPgto='todos';
+  renderHistorico();
 }
 // ───────────────────────────────────────────────────────────────────────
 
