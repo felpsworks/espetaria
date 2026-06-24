@@ -403,7 +403,8 @@ function registrarListeners(){
   }
 
   function erroListener(nome, err){
-    document.getElementById('fbLoadingMsg').textContent='❌ Erro em "'+nome+'": '+err.message;
+    console.error('Erro listener '+nome+':', err);
+    checa(); // conta mesmo com erro para não travar o loading
   }
 
   // CARDÁPIO
