@@ -383,29 +383,16 @@ function iniciarFirebase(cfg){
 }
 
 function registrarListeners(){
-  let prontos=0;
-  
-  // Timeout de segurança — se em 12s não carregar, mostra erro
-  const timeout=setTimeout(()=>{
-    if(prontos<4){
-      document.getElementById('fbLoadingMsg').textContent=
-        '⚠️ Timeout: '+prontos+'/4 listeners responderam. Verifique as regras do Firebase e recarregue.';
-    }
-  },12000);
+  let abriu=false;
 
-  function checa(){ 
-    if(++prontos===4){ 
-      clearTimeout(timeout);
-      document.getElementById('fbLoadingScreen').style.display='none'; 
-    } else {
-      document.getElementById('fbLoadingMsg').textContent='Carregando dados... ('+prontos+'/4)';
-    }
+  function abrirApp(){
+    if(abriu) return;
+    abriu=true;
+    document.getElementById('fbLoadingScreen').style.display='none';
   }
 
-  function erroListener(nome, err){
-    console.error('Erro listener '+nome+':', err);
-    checa(); // conta mesmo com erro para não travar o loading
-  }
+  // Abre o app em até 5s independente do que acontecer
+  setTimeout(abrirApp, 5000);
 
   // CARDÁPIO
   db.ref('cardapio').on('value', snap=>{
@@ -417,8 +404,8 @@ function registrarListeners(){
     }
     if(roleAtual==='cliente') renderCardapio();
     if(abaCaixaAtiva==='cardapio') renderCardapioCaixa();
-    checa();
-  }, err=>erroListener('cardapio', err));
+    abrirApp();
+  }, err=>{ console.error('cardapio',err); abrirApp(); });
 
   // CATEGORIAS
   db.ref('categorias').on('value', snap=>{
@@ -429,8 +416,8 @@ function registrarListeners(){
       fbSet('categorias', upd);
     }
     renderCatBtns();
-    checa();
-  }, err=>erroListener('categorias', err));
+    abrirApp();
+  }, err=>{ console.error('categorias',err); abrirApp(); });
 
   // PEDIDOS
   db.ref('pedidos').on('value', snap=>{
@@ -442,16 +429,16 @@ function registrarListeners(){
     if(roleAtual==='cliente'){ renderComanda(); verificarNotificacoes(); }
     if(roleAtual==='churrasqueiro') renderChurrasqueiro();
     if(roleAtual==='caixa'){ renderCaixa(); atualizarBadgeCaixa(); }
-    checa();
-  }, err=>erroListener('pedidos', err));
+    abrirApp();
+  }, err=>{ console.error('pedidos',err); abrirApp(); });
 
   // SOLICITAÇÕES
   db.ref('solicitacoes').on('value', snap=>{
     SOLICITACOES = snap.exists() ? snap2arr(snap) : [];
     atualizarBadgeCaixa();
     if(roleAtual==='caixa'&&abaCaixaAtiva==='clientes') renderCaixaClientes();
-    checa();
-  }, err=>erroListener('solicitacoes', err));
+    abrirApp();
+  }, err=>{ console.error('solicitacoes',err); abrirApp(); });
 }
 
 // Substitui o polling de notificações por verificação nos dados já recebidos
