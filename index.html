@@ -376,20 +376,20 @@ function iniciarFirebase(cfg){
   try{
     if(firebase.apps.length) firebase.app().delete();
   }catch(e){}
-  firebase.initializeApp(cfg);
-  db = firebase.database();
+
+  try{
+    firebase.initializeApp(cfg);
+    db = firebase.database();
+  }catch(e){
+    document.getElementById('fbLoadingMsg').textContent='❌ Erro: '+e.message;
+    return;
+  }
 
   document.getElementById('fbLoadingScreen').style.display='flex';
   document.getElementById('fbLoadingMsg').textContent='Conectando ao banco de dados...';
 
-  // Verifica conectividade
-  db.ref('.info/connected').once('value', snap=>{
-    if(!snap.val()){
-      document.getElementById('fbLoadingMsg').textContent='⚠️ Sem conexão com a internet. Verifique sua conexão e recarregue.';
-      return;
-    }
-    registrarListeners();
-  });
+  // Vai direto — .info/connected é não-confiável no primeiro tick
+  registrarListeners();
 }
 
 function registrarListeners(){
