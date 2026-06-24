@@ -977,7 +977,14 @@ function fazerPedido(){
     if(!_enderecoEntrega.rua){alert('Informe o endereço de entrega!');return;}
   }
 
-  const itens=keys.map(k=>{const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);return{nome:it.nome,qty:carrinho[k],preco:it.preco};});
+  const itens=keys.map(k=>{
+    const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);
+    if(!it){console.warn('Item não encontrado:',k);return null;}
+    return{nome:it.nome,qty:carrinho[k],preco:it.preco};
+  }).filter(Boolean);
+
+  if(itens.length===0){alert('Erro ao montar pedido. Tente novamente.');return;}
+
   const obs=document.getElementById('obsInput')?document.getElementById('obsInput').value:'';
   const agora=new Date();
   const hora=agora.getHours().toString().padStart(2,'0')+':'+agora.getMinutes().toString().padStart(2,'0');
@@ -986,6 +993,7 @@ function fazerPedido(){
     id:pedidoIdSeq++,
     clienteId:clienteIdAtual,
     cliente:clienteNome,
+    celular:clienteCelular||'',
     mesa:clienteMesa,
     itens,
     status:'aguardando',
@@ -995,7 +1003,7 @@ function fazerPedido(){
     tipo:_tipoPedido,
     endereco:_tipoPedido==='entrega'?{..._enderecoEntrega}:null
   };
-  fbSet('pedidos/'+key, pedido);
+  fbSet('pedidos/'+key, pedido).catch(e=>alert('Erro ao enviar pedido: '+e.message));
   carrinho={};
   renderComanda();
   atualizarTotalBar();
@@ -1044,7 +1052,7 @@ function renderChurrasqueiro(){
 }
 
 function mudarStatus(id,novoStatus){
-  // Ao iniciar um pedido, verifica se há pedidos mais antigos ainda aguardando
+  id=Number(id); // garante que é número para comparação
   if(novoStatus==='fazendo'){
     const fila=PEDIDOS.filter(p=>p.status==='aguardando').sort((a,b)=>a.id-b.id);
     const primeiro=fila[0];
@@ -1052,18 +1060,54 @@ function mudarStatus(id,novoStatus){
       const pedidoAtual=PEDIDOS.find(x=>x.id===id);
       const ignorar=confirm(
         `⚠️ Atenção — fora de ordem!\n\n`+
-        `Pedido #${primeiro.id} (${primeiro.hora}) de ${primeiro.cliente} — Mesa ${primeiro.mesa} foi solicitado antes.\n\n`+
-        `Tem certeza que quer começar o pedido #${pedidoAtual.id} (${pedidoAtual.hora}) de ${pedidoAtual.cliente} primeiro?\n\n`+
-        `Pressione OK para confirmar ou Cancelar para respeitar a fila.`
+        `Pedido #${primeiro.id} (${primeiro.hora}) de ${primeiro.cliente} foi solicitado antes.\n\n`+
+        `Tem certeza que quer começar o pedido #${pedidoAtual?.id} de ${pedidoAtual?.cliente} primeiro?\n\n`+
+        `OK para confirmar ou Cancelar para respeitar a fila.`
       );
       if(!ignorar) return;
     }
   }
-  const p=PEDIDOS.find(x=>x.id===id);
+  const p=PEDIDOS.find(x=>Number(x.id)===id);
   if(p&&p.fbKey){
     fbUpdate('pedidos/'+p.fbKey,{status:novoStatus});
   }
-  renderChurrasqueiro();
+}
+
+function abrirModalEntregas(){
+  const entregas=PEDIDOS.filter(p=>p.tipo==='entrega'&&!p.pago);
+  const overlay=document.createElement('div');
+  overlay.className='modal-prod-overlay';
+  overlay.id='modalEntregasOverlay';
+  overlay.innerHTML=`
+    <div class="modal-prod-box" style="max-height:85vh;overflow-y:auto">
+      <div class="modal-title">🛵 Entregas em Andamento (${entregas.length})</div>
+      ${entregas.length===0?'<p style="color:var(--muted);text-align:center">Nenhuma entrega ativa.</p>':
+        entregas.map(p=>{
+          const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
+          const [bc,bt]=p.status==='aguardando'?['badge-aguard','⏳ Aguardando']:p.status==='fazendo'?['badge-fazendo','🔥 Fazendo']:['badge-pronto','✅ Pronto'];
+          return `<div style="background:var(--superficie);border:1px solid #F0C040;border-radius:12px;padding:14px;margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <span style="font-weight:700;color:var(--dourado2)">Pedido #${p.id} · ${p.hora}</span>
+              <span class="badge ${bc}">${bt}</span>
+            </div>
+            <div style="display:grid;gap:6px;font-size:13px;margin-bottom:10px">
+              <div><span style="color:var(--muted)">👤 Nome:</span> <strong>${p.cliente}</strong></div>
+              ${p.celular?`<div><span style="color:var(--muted)">📱 Telefone:</span> <strong>${p.celular}</strong></div>`:''}
+              ${p.endereco?`
+              <div><span style="color:var(--muted)">📍 Endereço:</span> <strong>${p.endereco.rua}</strong></div>
+              ${p.endereco.bairro?`<div><span style="color:var(--muted)">🏘️ Bairro:</span> <strong>${p.endereco.bairro}</strong></div>`:''}
+              ${p.endereco.ref?`<div><span style="color:var(--muted)">📌 Ref:</span> ${p.endereco.ref}</div>`:''}
+              `:''}
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px">
+              ${p.itens.map(i=>`<div class="linha-item" style="font-size:13px"><span>${i.qty}x ${i.nome}</span><span style="color:var(--dourado2)">R$ ${(i.preco*i.qty).toFixed(2).replace('.',',')}</span></div>`).join('')}
+              <div class="linha-total"><span>Total</span><span style="color:var(--dourado2)">R$ ${tot.toFixed(2).replace('.',',')}</span></div>
+            </div>
+          </div>`;
+        }).join('')}
+      <button class="btn-cancelar" onclick="document.getElementById('modalEntregasOverlay').remove()">Fechar</button>
+    </div>`;
+  document.body.appendChild(overlay);
 }
 
 let _filtroResumo=null; // null=todos, 'aberto','fechado'
@@ -1119,6 +1163,14 @@ function renderCaixa(){
         <div class="val">${qtdFechado}</div><div class="lbl">Contas fechadas</div>
       </div>
     </div>
+    ${(()=>{
+      const entregas=PEDIDOS.filter(p=>p.tipo==='entrega'&&!p.pago);
+      if(entregas.length===0) return '';
+      return `<div class="caixa-stat ativo" style="grid-column:span 2;border-color:#F0C040;background:#2b1a00;margin-bottom:12px;cursor:pointer" onclick="abrirModalEntregas()">
+        <div class="val" style="color:#F0C040">🛵 ${entregas.length}</div>
+        <div class="lbl" style="color:#F0C040">Entrega${entregas.length>1?'s':''} em andamento — clique para ver detalhes</div>
+      </div>`;
+    })()}
     ${_filtroResumo!==null?`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="section-title" style="margin:0">${_filtroResumo==='aberto'?'⏳ Comandas Abertas':_filtroResumo==='fechado'?'✅ Contas Fechadas':'💰 Já Pago Hoje'}</div>
       <button onclick="filtroResumo(null)" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer">✕ Limpar</button>
