@@ -366,8 +366,14 @@ function iniciarFirebase(cfg){
   try{
     if(firebase.apps.length) firebase.app().delete();
   }catch(e){}
-  firebase.initializeApp(cfg);
-  db = firebase.database();
+
+  try{
+    firebase.initializeApp(cfg);
+    db = firebase.database();
+  }catch(e){
+    document.getElementById('fbLoadingMsg').textContent='❌ Erro ao iniciar Firebase: '+e.message;
+    return;
+  }
 
   document.getElementById('fbLoadingScreen').style.display='flex';
   document.getElementById('fbLoadingMsg').textContent='Conectando ao banco de dados...';
@@ -382,7 +388,8 @@ function registrarListeners(){
   // Timeout de segurança — se em 12s não carregar, mostra erro
   const timeout=setTimeout(()=>{
     if(prontos<4){
-      document.getElementById('fbLoadingMsg').textContent='⚠️ Não foi possível conectar. Verifique sua internet e recarregue.';
+      document.getElementById('fbLoadingMsg').textContent=
+        '⚠️ Timeout: '+prontos+'/4 listeners responderam. Verifique as regras do Firebase e recarregue.';
     }
   },12000);
 
@@ -390,13 +397,19 @@ function registrarListeners(){
     if(++prontos===4){ 
       clearTimeout(timeout);
       document.getElementById('fbLoadingScreen').style.display='none'; 
-    } 
+    } else {
+      document.getElementById('fbLoadingMsg').textContent='Carregando dados... ('+prontos+'/4)';
+    }
+  }
+
+  function erroListener(nome, err){
+    document.getElementById('fbLoadingMsg').textContent='❌ Erro em "'+nome+'": '+err.message;
   }
 
   // CARDÁPIO
   db.ref('cardapio').on('value', snap=>{
     CARDAPIO = snap.exists() ? snap2arr(snap) : [];
-    if(!snap.exists()){ // primeira vez: popula com dados iniciais
+    if(!snap.exists()){
       const upd={};
       CARDAPIO_INICIAIS.forEach(p=>{ upd[p.id]=p; });
       fbSet('cardapio', upd);
@@ -404,7 +417,7 @@ function registrarListeners(){
     if(roleAtual==='cliente') renderCardapio();
     if(abaCaixaAtiva==='cardapio') renderCardapioCaixa();
     checa();
-  });
+  }, err=>erroListener('cardapio', err));
 
   // CATEGORIAS
   db.ref('categorias').on('value', snap=>{
@@ -416,22 +429,20 @@ function registrarListeners(){
     }
     renderCatBtns();
     checa();
-  });
+  }, err=>erroListener('categorias', err));
 
   // PEDIDOS
   db.ref('pedidos').on('value', snap=>{
     PEDIDOS = snap.exists() ? snap2arr(snap) : [];
-    // Atualiza seqId
     if(PEDIDOS.length>0){
       const maxId=Math.max(...PEDIDOS.map(p=>typeof p.id==='number'?p.id:0));
       pedidoIdSeq=maxId+1;
     }
-    // Re-render conforme tela ativa
     if(roleAtual==='cliente'){ renderComanda(); verificarNotificacoes(); }
     if(roleAtual==='churrasqueiro') renderChurrasqueiro();
     if(roleAtual==='caixa'){ renderCaixa(); atualizarBadgeCaixa(); }
     checa();
-  });
+  }, err=>erroListener('pedidos', err));
 
   // SOLICITAÇÕES
   db.ref('solicitacoes').on('value', snap=>{
@@ -439,7 +450,7 @@ function registrarListeners(){
     atualizarBadgeCaixa();
     if(roleAtual==='caixa'&&abaCaixaAtiva==='clientes') renderCaixaClientes();
     checa();
-  });
+  }, err=>erroListener('solicitacoes', err));
 }
 
 // Substitui o polling de notificações por verificação nos dados já recebidos
