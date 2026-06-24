@@ -1086,7 +1086,7 @@ function renderCardapioCaixa(){
         ${CATEGORIAS.map(c=>`
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
             <span style="font-size:14px;color:var(--texto)">${c.nome}</span>
-            <button onclick="excluirCategoria('${c.id}')" style="padding:4px 10px;background:#3d0a0a;border:1px solid #7a1a1a;border-radius:7px;color:#ff6b6b;font-size:12px;cursor:pointer">🗑️</button>
+            <button onclick="excluirCategoria('${c.fbKey||c.id}')" style="padding:4px 10px;background:#3d0a0a;border:1px solid #7a1a1a;border-radius:7px;color:#ff6b6b;font-size:12px;cursor:pointer">🗑️</button>
           </div>`).join('')}
       </div>
       <div style="display:flex;gap:8px;margin-top:10px">
@@ -1104,8 +1104,8 @@ function renderCardapioCaixa(){
           <div class="prod-price">R$ ${p.preco.toFixed(2).replace('.',',')} · <span style="color:var(--muted);font-weight:400">${CATEGORIAS.find(c=>c.id===p.cat)?.nome||p.cat}</span></div>
         </div>
         <div class="prod-actions">
-          <button class="btn-edit" onclick="abrirModalProduto(${p.id})">✏️ Editar</button>
-          <button class="btn-del" onclick="excluirProduto(${p.id})">🗑️ Excluir</button>
+          <button class="btn-edit" onclick="abrirModalProduto('${p.fbKey||p.id}')">✏️ Editar</button>
+          <button class="btn-del" onclick="excluirProduto('${p.fbKey||p.id}')">🗑️ Excluir</button>
         </div>
       </div>`).join('')}`;
 }
@@ -1119,19 +1119,19 @@ function adicionarCategoria(){
   input.value='';
 }
 
-function excluirCategoria(id){
-  const c=CATEGORIAS.find(x=>x.id===id);
-  const emUso=CARDAPIO.some(p=>p.cat===id);
+function excluirCategoria(fbKey){
+  const c=CATEGORIAS.find(x=>(x.fbKey||x.id)===fbKey);
+  const emUso=CARDAPIO.some(p=>p.cat===c?.id);
   if(emUso){alert(`A categoria "${c?.nome}" está em uso por produtos. Mude a categoria deles antes de excluir.`);return;}
   if(!confirm(`Excluir categoria "${c?.nome}"?`)) return;
-  fbRemove('categorias/'+id);
-  if(catAtiva===id) catAtiva='todos';
+  fbRemove('categorias/'+fbKey);
+  if(catAtiva===c?.id) catAtiva='todos';
 }
 
-function abrirModalProduto(id){
-  _prodEditId = id;
+function abrirModalProduto(fbKey){
+  _prodEditId = fbKey;
   _fotoBase64 = null;
-  const p = id ? CARDAPIO.find(x=>x.id===id) : null;
+  const p = fbKey ? CARDAPIO.find(x=>(x.fbKey||x.id)==fbKey) : null;
   const overlay = document.createElement('div');
   overlay.className = 'modal-prod-overlay';
   overlay.id = 'modalProdOverlay';
@@ -1184,10 +1184,9 @@ function salvarProduto(){
   if(!nome){alert('Digite o nome do produto!');return;}
   if(isNaN(preco)||preco<0){alert('Preço inválido!');return;}
   if(_prodEditId){
-    // Edição — encontra fbKey do produto
-    const p=CARDAPIO.find(x=>x.id===_prodEditId);
+    const p=CARDAPIO.find(x=>(x.fbKey||x.id)==_prodEditId);
     const fbk=p?.fbKey||_prodEditId;
-    const upd={id:_prodEditId,nome,desc,preco,cat,emoji};
+    const upd={id:p?.id||_prodEditId,nome,desc,preco,cat,emoji};
     if(_fotoBase64) upd.foto=_fotoBase64;
     else if(p?.foto) upd.foto=p.foto;
     fbSet('cardapio/'+fbk, upd);
@@ -1200,11 +1199,10 @@ function salvarProduto(){
   fecharModalProduto();
 }
 
-function excluirProduto(id){
-  const p=CARDAPIO.find(x=>x.id===id);
+function excluirProduto(fbKey){
+  const p=CARDAPIO.find(x=>(x.fbKey||x.id)==fbKey);
   if(!confirm(`Excluir "${p?.nome}"?`)) return;
-  const fbk=p?.fbKey||id;
-  fbRemove('cardapio/'+fbk);
+  fbRemove('cardapio/'+(p?.fbKey||fbKey));
 }
 
 function fecharModalProduto(){
