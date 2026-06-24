@@ -486,7 +486,7 @@ function renderCatBtns(){
 function totalCarrinho(){
   return Object.keys(carrinho).reduce((s,k)=>{
     if(!carrinho[k]) return s;
-    const it=CARDAPIO.find(i=>i.id==k);
+    const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);
     return s+(it?it.preco*carrinho[k]:0);
   },0);
 }
@@ -659,7 +659,8 @@ function renderCardapio(){
   renderCatBtns();
   const itens=catAtiva==='todos'?CARDAPIO:CARDAPIO.filter(i=>i.cat===catAtiva);
   document.getElementById('itemsContainer').innerHTML=itens.map(i=>{
-    const qty=carrinho[i.id]||0;
+    const key=i.fbKey||i.id;
+    const qty=carrinho[key]||0;
     const thumb=i.foto
       ?`<div class="item-emoji" style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0"><img src="${i.foto}" style="width:100%;height:100%;object-fit:cover"></div>`
       :`<span class="item-emoji">${i.emoji||'🍢'}</span>`;
@@ -671,21 +672,21 @@ function renderCardapio(){
         <div class="item-price">R$ ${i.preco.toFixed(2).replace('.',',')}</div>
       </div>
       <div class="item-ctrl">
-        ${qty>0?`<button class="ctrl-btn rem" onclick="remItem(${i.id})">&#8722;</button><span class="ctrl-qty">${qty}</span>`:''}
-        <button class="ctrl-btn add" onclick="addItem(${i.id})">+</button>
+        ${qty>0?`<button class="ctrl-btn rem" onclick="remItem('${key}')">&#8722;</button><span class="ctrl-qty">${qty}</span>`:''}
+        <button class="ctrl-btn add" onclick="addItem('${key}')">+</button>
       </div>
     </div>`;
   }).join('');
   atualizarTotalBar();
 }
 
-function addItem(id){
-  carrinho[id]=(carrinho[id]||0)+1;
+function addItem(key){
+  carrinho[key]=(carrinho[key]||0)+1;
   renderCardapio();
 }
-function remItem(id){
-  if(carrinho[id]>0) carrinho[id]--;
-  if(carrinho[id]===0) delete carrinho[id];
+function remItem(key){
+  if(carrinho[key]>0) carrinho[key]--;
+  if(carrinho[key]===0) delete carrinho[key];
   renderCardapio();
 }
 
@@ -698,7 +699,7 @@ function renderComanda(){
   if(temCarrinho){
     const total=totalCarrinho();
     const itensCarrinho=Object.keys(carrinho).filter(k=>carrinho[k]>0).map(k=>{
-      const it=CARDAPIO.find(i=>i.id==k);
+      const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);
       return {nome:it.nome,qty:carrinho[k],preco:it.preco};
     });
     html+=`<div class="pedido-pendente">
@@ -796,7 +797,7 @@ function confirmarSolicitacao(){
   meusPedidos.forEach(p=>p.itens.forEach(i=>itensTodos.push(i)));
   if(qtdCarrinho()>0){
     Object.keys(carrinho).filter(k=>carrinho[k]>0).forEach(k=>{
-      const it=CARDAPIO.find(i=>i.id==k);
+      const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);
       if(it) itensTodos.push({nome:it.nome,qty:carrinho[k],preco:it.preco});
     });
   }
@@ -879,7 +880,7 @@ function recusarSolicitacao(idx){
 function fazerPedido(){
   const keys=Object.keys(carrinho).filter(k=>carrinho[k]>0);
   if(keys.length===0) return;
-  const itens=keys.map(k=>{const it=CARDAPIO.find(i=>i.id==k);return{nome:it.nome,qty:carrinho[k],preco:it.preco};});
+  const itens=keys.map(k=>{const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);return{nome:it.nome,qty:carrinho[k],preco:it.preco};});
   const obs=document.getElementById('obsInput')?document.getElementById('obsInput').value:'';
   const agora=new Date();
   const hora=agora.getHours().toString().padStart(2,'0')+':'+agora.getMinutes().toString().padStart(2,'0');
