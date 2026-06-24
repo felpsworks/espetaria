@@ -393,21 +393,28 @@ function iniciarFirebase(cfg){
 }
 
 function registrarListeners(){
-  let prontos=0;
-  function checa(){ if(++prontos===4){ document.getElementById('fbLoadingScreen').style.display='none'; } }
+  let abriu=false;
+  function abrirApp(){
+    if(abriu) return;
+    abriu=true;
+    document.getElementById('fbLoadingScreen').style.display='none';
+  }
+
+  // Abre em até 8s independente do que acontecer
+  setTimeout(abrirApp, 8000);
 
   // CARDÁPIO
   db.ref('cardapio').on('value', snap=>{
     CARDAPIO = snap.exists() ? snap2arr(snap) : [];
-    if(!snap.exists()){ // primeira vez: popula com dados iniciais
+    if(!snap.exists()){
       const upd={};
       CARDAPIO_INICIAIS.forEach(p=>{ upd[p.id]=p; });
       fbSet('cardapio', upd);
     }
     if(roleAtual==='cliente') renderCardapio();
     if(abaCaixaAtiva==='cardapio') renderCardapioCaixa();
-    checa();
-  });
+    abrirApp();
+  }, err=>{ console.error('cardapio',err); abrirApp(); });
 
   // CATEGORIAS
   db.ref('categorias').on('value', snap=>{
@@ -418,31 +425,29 @@ function registrarListeners(){
       fbSet('categorias', upd);
     }
     renderCatBtns();
-    checa();
-  });
+    abrirApp();
+  }, err=>{ console.error('categorias',err); abrirApp(); });
 
   // PEDIDOS
   db.ref('pedidos').on('value', snap=>{
     PEDIDOS = snap.exists() ? snap2arr(snap) : [];
-    // Atualiza seqId
     if(PEDIDOS.length>0){
       const maxId=Math.max(...PEDIDOS.map(p=>typeof p.id==='number'?p.id:0));
       pedidoIdSeq=maxId+1;
     }
-    // Re-render conforme tela ativa
     if(roleAtual==='cliente'){ renderComanda(); verificarNotificacoes(); }
     if(roleAtual==='churrasqueiro') renderChurrasqueiro();
     if(roleAtual==='caixa'){ renderCaixa(); atualizarBadgeCaixa(); }
-    checa();
-  });
+    abrirApp();
+  }, err=>{ console.error('pedidos',err); abrirApp(); });
 
   // SOLICITAÇÕES
   db.ref('solicitacoes').on('value', snap=>{
     SOLICITACOES = snap.exists() ? snap2arr(snap) : [];
     atualizarBadgeCaixa();
     if(roleAtual==='caixa'&&abaCaixaAtiva==='clientes') renderCaixaClientes();
-    checa();
-  });
+    abrirApp();
+  }, err=>{ console.error('solicitacoes',err); abrirApp(); });
 }
 
 // Substitui o polling de notificações por verificação nos dados já recebidos
@@ -490,7 +495,7 @@ function renderCatBtns(){
 function totalCarrinho(){
   return Object.keys(carrinho).reduce((s,k)=>{
     if(!carrinho[k]) return s;
-    const it=CARDAPIO.find(i=>i.id==k);
+    const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);
     return s+(it?it.preco*carrinho[k]:0);
   },0);
 }
@@ -663,7 +668,8 @@ function renderCardapio(){
   renderCatBtns();
   const itens=catAtiva==='todos'?CARDAPIO:CARDAPIO.filter(i=>i.cat===catAtiva);
   document.getElementById('itemsContainer').innerHTML=itens.map(i=>{
-    const qty=carrinho[i.id]||0;
+    const key=i.fbKey||i.id;
+    const qty=carrinho[key]||0;
     const thumb=i.foto
       ?`<div class="item-emoji" style="width:52px;height:52px;border-radius:8px;overflow:hidden;flex-shrink:0"><img src="${i.foto}" style="width:100%;height:100%;object-fit:cover"></div>`
       :`<span class="item-emoji">${i.emoji||'🍢'}</span>`;
@@ -675,21 +681,21 @@ function renderCardapio(){
         <div class="item-price">R$ ${i.preco.toFixed(2).replace('.',',')}</div>
       </div>
       <div class="item-ctrl">
-        ${qty>0?`<button class="ctrl-btn rem" onclick="remItem(${i.id})">&#8722;</button><span class="ctrl-qty">${qty}</span>`:''}
-        <button class="ctrl-btn add" onclick="addItem(${i.id})">+</button>
+        ${qty>0?`<button class="ctrl-btn rem" onclick="remItem('${key}')">&#8722;</button><span class="ctrl-qty">${qty}</span>`:''}
+        <button class="ctrl-btn add" onclick="addItem('${key}')">+</button>
       </div>
     </div>`;
   }).join('');
   atualizarTotalBar();
 }
 
-function addItem(id){
-  carrinho[id]=(carrinho[id]||0)+1;
+function addItem(key){
+  carrinho[key]=(carrinho[key]||0)+1;
   renderCardapio();
 }
-function remItem(id){
-  if(carrinho[id]>0) carrinho[id]--;
-  if(carrinho[id]===0) delete carrinho[id];
+function remItem(key){
+  if(carrinho[key]>0) carrinho[key]--;
+  if(carrinho[key]===0) delete carrinho[key];
   renderCardapio();
 }
 
@@ -702,7 +708,7 @@ function renderComanda(){
   if(temCarrinho){
     const total=totalCarrinho();
     const itensCarrinho=Object.keys(carrinho).filter(k=>carrinho[k]>0).map(k=>{
-      const it=CARDAPIO.find(i=>i.id==k);
+      const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);
       return {nome:it.nome,qty:carrinho[k],preco:it.preco};
     });
     html+=`<div class="pedido-pendente">
@@ -877,7 +883,7 @@ function confirmarSolicitacao(){
   meusPedidos.forEach(p=>p.itens.forEach(i=>itensTodos.push(i)));
   if(qtdCarrinho()>0){
     Object.keys(carrinho).filter(k=>carrinho[k]>0).forEach(k=>{
-      const it=CARDAPIO.find(i=>i.id==k);
+      const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);
       if(it) itensTodos.push({nome:it.nome,qty:carrinho[k],preco:it.preco});
     });
   }
@@ -971,7 +977,7 @@ function fazerPedido(){
     if(!_enderecoEntrega.rua){alert('Informe o endereço de entrega!');return;}
   }
 
-  const itens=keys.map(k=>{const it=CARDAPIO.find(i=>i.id==k);return{nome:it.nome,qty:carrinho[k],preco:it.preco};});
+  const itens=keys.map(k=>{const it=CARDAPIO.find(i=>(i.fbKey||i.id)==k);return{nome:it.nome,qty:carrinho[k],preco:it.preco};});
   const obs=document.getElementById('obsInput')?document.getElementById('obsInput').value:'';
   const agora=new Date();
   const hora=agora.getHours().toString().padStart(2,'0')+':'+agora.getMinutes().toString().padStart(2,'0');
