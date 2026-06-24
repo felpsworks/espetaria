@@ -372,19 +372,26 @@ function iniciarFirebase(cfg){
   document.getElementById('fbLoadingScreen').style.display='flex';
   document.getElementById('fbLoadingMsg').textContent='Conectando ao banco de dados...';
 
-  // Verifica conectividade
-  db.ref('.info/connected').once('value', snap=>{
-    if(!snap.val()){
-      document.getElementById('fbLoadingMsg').textContent='⚠️ Sem conexão com a internet. Verifique sua conexão e recarregue.';
-      return;
-    }
-    registrarListeners();
-  });
+  // Inicia direto — o Firebase conecta assíncrono
+  registrarListeners();
 }
 
 function registrarListeners(){
   let prontos=0;
-  function checa(){ if(++prontos===4){ document.getElementById('fbLoadingScreen').style.display='none'; } }
+  
+  // Timeout de segurança — se em 12s não carregar, mostra erro
+  const timeout=setTimeout(()=>{
+    if(prontos<4){
+      document.getElementById('fbLoadingMsg').textContent='⚠️ Não foi possível conectar. Verifique sua internet e recarregue.';
+    }
+  },12000);
+
+  function checa(){ 
+    if(++prontos===4){ 
+      clearTimeout(timeout);
+      document.getElementById('fbLoadingScreen').style.display='none'; 
+    } 
+  }
 
   // CARDÁPIO
   db.ref('cardapio').on('value', snap=>{
