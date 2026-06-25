@@ -182,6 +182,15 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 .tipo-local{background:#1a2b4d;color:#6BB8FF}
 .tipo-entrega{background:#2b1a00;color:#F0C040}
 .tipo-viagem{background:#1a1a0d;color:#b0b060}
+.card-entrega{background:#3d2800!important;border:2px solid #F0C040!important}
+.card-entrega .comanda-nome,.card-entrega .pedido-cliente{color:#F0C040!important;font-size:16px!important}
+.card-entrega .pedido-num{font-size:14px!important}
+.card-viagem{background:#1e2800!important;border:2px solid #9acd32!important}
+.card-viagem .comanda-nome,.card-viagem .pedido-cliente{color:#9acd32!important;font-size:16px!important}
+.card-viagem .pedido-num{font-size:14px!important}
+.tipo-badge-lg{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:800;padding:5px 12px;border-radius:20px;margin-bottom:6px}
+.data-filtro-caixa{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--dourado);border-radius:12px;padding:10px 14px;margin-bottom:14px}
+.data-filtro-caixa input{background:transparent;border:none;color:var(--dourado2);font-size:15px;font-weight:700;outline:none;cursor:pointer;flex:1}
 .endereco-box{background:var(--superficie);border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px}
 .endereco-box input{width:100%;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--texto);font-size:13px;padding:6px 0;margin-bottom:6px;outline:none}
 .endereco-box input::placeholder{color:var(--muted)}
@@ -292,7 +301,7 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 <div id="caixaScreen" class="screen">
   <div class="header">
     <div class="header-left">
-      <span class="header-icon">💰</span>
+      <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj" style="width:36px;height:36px;object-fit:contain;border-radius:6px;flex-shrink:0" alt="logo"/>
       <div><div class="header-title">Caixa</div><div class="header-sub">Controle de comandas</div></div>
     </div>
     <button class="btn-sair" onclick="sair()">Sair</button>
@@ -1073,12 +1082,16 @@ function renderChurrasqueiro(){
   document.getElementById('filaPedidos').innerHTML=filtroHTML+(lista.length===0
     ?`<div class="empty-state"><div class="empty-icon">${abaChurrasAtiva==='fila'?'⏳':abaChurrasAtiva==='fazendo'?'🔥':'✅'}</div><p>${abaChurrasAtiva==='prontos'&&_filtroDataProntos?'Nenhum pedido pronto em '+_filtroDataProntos:'Nenhum pedido aqui'}</p></div>`
     :lista.map(p=>{
-      const tipoLabel={'local':'🪑 Local','entrega':'🛵 Entrega','viagem':'🥡 Viagem'}[p.tipo]||'🪑 Local';
-      const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[p.tipo]||'tipo-local';
-      return `<div class="pedido-card">
-      <div class="pedido-num">Pedido #${p.id} · ${p.hora}${p.data?' · '+p.data:''} · Mesa ${p.mesa} <span class="tipo-badge ${tipoClass}">${tipoLabel}</span></div>
+      const tipo=p.tipo||'local';
+      const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
+      const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
+      const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
+      const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
+      return `<div class="pedido-card ${cardClass}">
+      <div class="pedido-num">Pedido #${p.id} · ${p.hora}${p.data?' · '+p.data:''} · Mesa ${p.mesa}</div>
+      <div style="margin:6px 0"><span class="tipo-badge ${tipoClass}" style="font-size:14px;padding:5px 12px">${tipoEmoji} ${tipoNome}</span></div>
       <div class="pedido-cliente">${p.cliente}</div>
-      ${p.endereco?`<div style="font-size:12px;color:var(--dourado2);margin:4px 0">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}${p.endereco.ref?' · '+p.endereco.ref:''}</div>`:''}
+      ${p.endereco?`<div style="font-size:13px;color:var(--dourado2);margin:6px 0;font-weight:600">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}${p.endereco.ref?' · Ref: '+p.endereco.ref:''}</div>`:''}
       <div class="pedido-itens">${p.itens.map(i=>`<div class="pedido-item"><span class="qty">${i.qty}x</span>${i.nome}</div>`).join('')}</div>
       ${p.obs?`<div class="pedido-obs">📝 ${p.obs}</div>`:''}
       <div class="pedido-actions">
@@ -1159,6 +1172,7 @@ function abrirModalEntregas(){
 }
 
 let _filtroResumo=null; // null=todos, 'aberto','fechado'
+let _filtroDataCaixa=''; // DD-MM-YYYY, vazio = hoje
 
 function abaCaixa(aba,el){
   abaCaixaAtiva=aba;
@@ -1177,32 +1191,44 @@ function abaCaixa(aba,el){
 }
 
 function renderCaixa(){
-  // Agrupamos pedidos por clienteId para contar comandas únicas
-  const clienteIds=[...new Set(PEDIDOS.map(p=>p.clienteId))];
-  const totalAberto=PEDIDOS.filter(p=>!p.pago).reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
-  const totalPago=PEDIDOS.filter(p=>p.pago).reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
-  const qtdAberto=clienteIds.filter(cid=>PEDIDOS.filter(p=>p.clienteId===cid).some(p=>!p.pago)).length;
-  const qtdFechado=clienteIds.filter(cid=>PEDIDOS.filter(p=>p.clienteId===cid).every(p=>p.pago)).length;
+  // Data de referência
+  const agora=new Date();
+  const hojeStr=`${String(agora.getDate()).padStart(2,'0')}-${String(agora.getMonth()+1).padStart(2,'0')}-${agora.getFullYear()}`;
+  const dataRef=_filtroDataCaixa||hojeStr;
+  // Para input type=date (YYYY-MM-DD)
+  const partes=dataRef.split('-');
+  const inputVal=partes.length===3?`${partes[2]}-${partes[1]}-${partes[0]}`:'';
 
-  // Filtro ativo
-  let lista=PEDIDOS.slice().reverse();
-  let rodapeLbl='Total geral';
-  let rodapeVal=totalAberto+totalPago;
-  if(_filtroResumo==='aberto'){
-    lista=lista.filter(p=>!p.pago);
-    rodapeLbl='Total em aberto';rodapeVal=totalAberto;
-  } else if(_filtroResumo==='fechado'){
-    lista=lista.filter(p=>p.pago);
-    rodapeLbl='Total pago';rodapeVal=totalPago;
-  }
+  // Filtra pedidos pela data
+  const pedidosData=PEDIDOS.filter(p=>p.data===dataRef);
+
+  const clienteIds=[...new Set(pedidosData.map(p=>p.clienteId))];
+  const totalAberto=pedidosData.filter(p=>!p.pago).reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+  const totalPago=pedidosData.filter(p=>p.pago).reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+  const qtdAberto=clienteIds.filter(cid=>pedidosData.filter(p=>p.clienteId===cid).some(p=>!p.pago)).length;
+  const qtdFechado=clienteIds.filter(cid=>pedidosData.filter(p=>p.clienteId===cid).every(p=>p.pago)).length;
+
+  // Filtro de card ativo
+  let lista=pedidosData.slice().reverse();
+  let rodapeLbl='Total do dia'; let rodapeVal=totalAberto+totalPago;
+  if(_filtroResumo==='aberto'){ lista=lista.filter(p=>!p.pago); rodapeLbl='Em aberto'; rodapeVal=totalAberto; }
+  else if(_filtroResumo==='fechado'){ lista=lista.filter(p=>p.pago); rodapeLbl='Total pago'; rodapeVal=totalPago; }
+
+  // Entregas em aberto do dia
+  const entregas=pedidosData.filter(p=>p.tipo==='entrega'&&!p.pago);
 
   document.getElementById('caixaResumo').innerHTML=`
+    <div class="data-filtro-caixa">
+      <span style="font-size:13px;color:var(--muted);white-space:nowrap">📅 Data:</span>
+      <input type="date" value="${inputVal}" onchange="mudarDataCaixa(this.value)">
+      ${dataRef!==hojeStr?`<button onclick="mudarDataCaixa('')" style="font-size:11px;color:var(--fogo2);background:none;border:none;cursor:pointer;white-space:nowrap">Hoje</button>`:'<span style="font-size:11px;color:#5EFF8C">Hoje</span>'}
+    </div>
     <div class="caixa-stat-grid">
       <div class="caixa-stat${_filtroResumo===null?' ativo':''}" onclick="filtroResumo(null)">
         <div class="val">R$&nbsp;${totalAberto.toFixed(2).replace('.',',')}</div><div class="lbl">Em aberto</div>
       </div>
       <div class="caixa-stat${_filtroResumo==='pago'?' ativo':''}" onclick="filtroResumo('pago')">
-        <div class="val" style="color:#5EFF8C">R$&nbsp;${totalPago.toFixed(2).replace('.',',')}</div><div class="lbl">Já pago hoje</div>
+        <div class="val" style="color:#5EFF8C">R$&nbsp;${totalPago.toFixed(2).replace('.',',')}</div><div class="lbl">Já pago</div>
       </div>
       <div class="caixa-stat${_filtroResumo==='aberto'?' ativo':''}" onclick="filtroResumo('aberto')">
         <div class="val">${qtdAberto}</div><div class="lbl">Comandas abertas</div>
@@ -1211,36 +1237,37 @@ function renderCaixa(){
         <div class="val">${qtdFechado}</div><div class="lbl">Contas fechadas</div>
       </div>
     </div>
-    ${(()=>{
-      const entregas=PEDIDOS.filter(p=>p.tipo==='entrega'&&!p.pago);
-      if(entregas.length===0) return '';
-      return `<div class="caixa-stat ativo" style="grid-column:span 2;border-color:#F0C040;background:#2b1a00;margin-bottom:12px;cursor:pointer" onclick="abrirModalEntregas()">
-        <div class="val" style="color:#F0C040">🛵 ${entregas.length}</div>
-        <div class="lbl" style="color:#F0C040">Entrega${entregas.length>1?'s':''} em andamento — clique para ver detalhes</div>
-      </div>`;
-    })()}
+    ${entregas.length>0?`
+    <div class="caixa-stat" style="border-color:#F0C040;background:#2b1a00;margin-bottom:12px;cursor:pointer;text-align:center;padding:12px;border-radius:12px" onclick="abrirModalEntregas()">
+      <div style="font-size:22px;font-weight:700;color:#F0C040">🛵 ${entregas.length}</div>
+      <div style="font-size:12px;color:#F0C040">Entrega${entregas.length>1?'s':''} em andamento · clique para ver</div>
+    </div>`:''}
     ${_filtroResumo!==null?`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="section-title" style="margin:0">${_filtroResumo==='aberto'?'⏳ Comandas Abertas':_filtroResumo==='fechado'?'✅ Contas Fechadas':'💰 Já Pago Hoje'}</div>
+      <div class="section-title" style="margin:0">${_filtroResumo==='aberto'?'⏳ Em Aberto':_filtroResumo==='fechado'?'✅ Contas Fechadas':'💰 Já Pago'}</div>
       <button onclick="filtroResumo(null)" style="font-size:12px;color:var(--muted);background:none;border:none;cursor:pointer">✕ Limpar</button>
-    </div>`:`<div class="section-title">Pedidos recentes</div>`}
-    ${lista.length===0?`<div class="empty-state"><div class="empty-icon">📋</div><p>Nenhum pedido aqui</p></div>`:
-    lista.map(p=>{
-      const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
-      const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:p.status==='fazendo'?['badge-fazendo','Fazendo']:['badge-pronto','Pronto'];
-      const tipoLabel={'local':'🪑','entrega':'🛵','viagem':'🥡'}[p.tipo]||'🪑';
-      const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[p.tipo]||'tipo-local';
-      return `<div class="comanda-card" style="margin-bottom:8px">
-        <div class="comanda-header">
-          <span class="comanda-nome">${p.cliente} · Mesa ${p.mesa} <span class="tipo-badge ${tipoClass}">${tipoLabel}</span></span>
-          ${p.pago?`<span class="tag-pago">PAGO${p.pagamento?' · '+p.pagamento:''}</span>`:`<span class="badge ${bc}">${bt}</span>`}
-        </div>
-        <div style="font-size:12px;color:var(--muted)">#${p.id} · ${p.hora} · ${p.itens.length} item(ns)</div>
-        ${p.endereco?`<div style="font-size:11px;color:var(--dourado2)">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}</div>`:''}
-        <div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R$ ${tot.toFixed(2).replace('.',',')}</div>
-      </div>`;
-    }).join('')}`;
+    </div>`:`<div class="section-title">Pedidos do dia</div>`}
+    ${lista.length===0
+      ?`<div class="empty-state"><div class="empty-icon">📋</div><p>Nenhum pedido em ${dataRef}</p></div>`
+      :lista.map(p=>{
+        const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
+        const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:p.status==='fazendo'?['badge-fazendo','Fazendo']:['badge-pronto','Pronto'];
+        const tipo=p.tipo||'local';
+        const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
+        const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
+        const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
+        const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
+        return `<div class="comanda-card ${cardClass}" style="margin-bottom:8px">
+          <div style="margin-bottom:4px"><span class="tipo-badge ${tipoClass}" style="font-size:13px;padding:4px 10px">${tipoEmoji} ${tipoNome}</span></div>
+          <div class="comanda-header">
+            <span class="comanda-nome">${p.cliente} · Mesa ${p.mesa}</span>
+            ${p.pago?`<span class="tag-pago">PAGO${p.pagamento?' · '+p.pagamento:''}</span>`:`<span class="badge ${bc}">${bt}</span>`}
+          </div>
+          <div style="font-size:12px;color:var(--muted)">#${p.id} · ${p.hora} · ${p.itens.length} item(ns)</div>
+          ${p.endereco?`<div style="font-size:11px;color:var(--dourado2);margin-top:2px">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}</div>`:''}
+          <div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R$ ${tot.toFixed(2).replace('.',',')}</div>
+        </div>`;
+      }).join('')}`;
 
-  // Rodapé (só quando filtro ativo no resumo)
   if(_filtroResumo!==null){
     document.getElementById('caixaRodape').classList.remove('hidden');
     document.getElementById('caixaRodapeLbl').textContent=rodapeLbl+' ('+lista.length+' pedido'+(lista.length!==1?'s':'')+')';
@@ -1251,6 +1278,13 @@ function renderCaixa(){
 
   renderCaixaClientes();
   atualizarBadgeCaixa();
+}
+
+function mudarDataCaixa(inputVal){
+  if(!inputVal){ _filtroDataCaixa=''; }
+  else{ const[ano,mes,dia]=inputVal.split('-'); _filtroDataCaixa=`${dia}-${mes}-${ano}`; }
+  _filtroResumo=null;
+  renderCaixa();
 }
 
 function filtroResumo(tipo){
