@@ -252,7 +252,7 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
   <div class="header">
     <div class="header-left">
       <span class="header-icon">🧑‍🍽️</span>
-      <div><div class="header-title" id="clienteNomeHeader">Cliente</div><div class="header-sub">Mesa <span id="mesaNum">—</span> · <span id="clienteIdDisplay" style="color:var(--dourado2)">#0001</span></div></div>
+      <div><div class="header-title" id="clienteNomeHeader">Cliente</div><div class="header-sub"><span id="clienteIdDisplay" style="color:var(--dourado2)">#0001</span></div></div>
     </div>
     <button class="btn-sair" onclick="sair()">Sair</button>
   </div>
@@ -301,7 +301,7 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 <div id="caixaScreen" class="screen">
   <div class="header">
     <div class="header-left">
-      <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj" style="width:36px;height:36px;object-fit:contain;border-radius:6px;flex-shrink:0" alt="logo"/>
+      <span class="header-icon">💰</span>
       <div><div class="header-title">Caixa</div><div class="header-sub">Controle de comandas</div></div>
     </div>
     <button class="btn-sair" onclick="sair()">Sair</button>
@@ -568,7 +568,6 @@ function entrar(){
       clienteIdSeq++;
     }
     document.getElementById('clienteNomeHeader').textContent=clienteNome;
-    document.getElementById('mesaNum').textContent=clienteMesa;
     // Mostrar ID sequencial de 4 dígitos
     const idDisp=String(clienteIdSeq).padStart(4,'0');
     document.getElementById('clienteIdDisplay').textContent='#'+idDisp;
@@ -918,59 +917,8 @@ function atualizarBadgeCaixa(){
   tab.innerHTML=`👥 Clientes${n>0?`<span class="badge-notif">${n}</span>`:''}`;
 }
 
-function diasDesdeUltimoPedido(peds){
-  // Tenta pegar a data do último pedido
-  // data está no formato DD-MM-YYYY ou dataFecha no formato YYYY-MM-DD
-  const datas = peds.map(p=>{
-    if(p.dataFecha) return new Date(p.dataFecha); // YYYY-MM-DD
-    if(p.data){
-      const [d,m,y]=p.data.split('-');
-      if(d&&m&&y) return new Date(`${y}-${m}-${d}`);
-    }
-    return null;
-  }).filter(Boolean);
-  if(datas.length===0) return null;
-  const ultima=new Date(Math.max(...datas.map(d=>d.getTime())));
-  const hoje=new Date();
-  hoje.setHours(0,0,0,0);
-  ultima.setHours(0,0,0,0);
-  const diff=Math.round((hoje-ultima)/(1000*60*60*24));
-  if(diff===0) return 'Hoje';
-  if(diff===1) return 'há 1 dia';
-  return `há ${diff} dias`;
-}
-
-function formatarTelExibicao(cel){
-  const c=cel.replace(/\D/g,'');
-  if(c.length===11) return `(${c.slice(0,2)}) ${c.slice(2,7)}-${c.slice(7)}`;
-  if(c.length===10) return `(${c.slice(0,2)}) ${c.slice(2,6)}-${c.slice(6)}`;
-  return cel;
-}
-
-function abrirWhatsApp(celular, nome){
-  const c=celular.replace(/\D/g,'');
-  const num=c.startsWith('55')?c:'55'+c;
-  const msg=encodeURIComponent(`Olá, ${nome}! 🍢 Tudo bem?\nAqui é d'O Quintal na Brasa! Estamos com novidades deliciosas no cardápio e sentimos sua falta. Que tal uma visita? 🔥\nAté breve!`);
-  window.open(`https://wa.me/${num}?text=${msg}`,'_blank');
-}
-
 function renderCaixaClientes(){
-  // Agrupa clientes únicos a partir dos pedidos
-  const mapaClientes={};
-  PEDIDOS.forEach(p=>{
-    if(!p.clienteId) return;
-    if(!mapaClientes[p.clienteId]){
-      mapaClientes[p.clienteId]={
-        cid:p.clienteId,
-        nome:p.cliente||'—',
-        celular:p.celular||p.clienteId||'',
-        peds:[]
-      };
-    }
-    mapaClientes[p.clienteId].peds.push(p);
-  });
-  const clientes=Object.values(mapaClientes);
-
+  const clienteIds=[...new Set(PEDIDOS.map(p=>p.clienteId))];
   let html='';
 
   // Solicitações de fechamento pendentes no topo
@@ -982,7 +930,7 @@ function renderCaixaClientes(){
           <span class="solicit-nome">👤 ${s.nome}</span>
           <span class="solicit-pgto">${s.pagamento}</span>
         </div>
-        <div class="solicit-mesa">Mesa ${s.mesa} · ${s.hora}</div>
+        <div class="solicit-mesa">${s.hora}</div>
         <div style="margin-bottom:8px">
           ${s.itens.map(i=>`<div class="linha-item" style="font-size:13px"><span>${i.qty}x ${i.nome}</span><span style="color:var(--dourado2)">R$ ${(i.preco*i.qty).toFixed(2).replace('.',',')}</span></div>`).join('')}
         </div>
@@ -993,35 +941,22 @@ function renderCaixaClientes(){
         </div>
       </div>`;
     });
+    html+=`<div class="section-title" style="margin-top:16px;margin-bottom:10px">👥 Todos os Clientes</div>`;
   }
 
-  html+=`<div class="section-title" style="margin-top:${SOLICITACOES.length>0?'16px':'0'};margin-bottom:10px">👥 Clientes Cadastrados (${clientes.length})</div>`;
-
-  if(clientes.length===0){
-    html+=`<div class="empty-state"><div class="empty-icon">👤</div><p>Nenhum cliente cadastrado ainda.</p></div>`;
-  } else {
-    html+=clientes.map(cl=>{
-      const pago=cl.peds.every(p=>p.pago);
-      const tot=cl.peds.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
-      const diasLabel=diasDesdeUltimoPedido(cl.peds);
-      const telFmt=cl.celular?formatarTelExibicao(cl.celular):'—';
-      const temCel=cl.celular&&cl.celular.replace(/\D/g,'').length>=10;
-      return `<div class="cliente-row" style="cursor:default">
-        <div class="cliente-row-top" style="align-items:flex-start;gap:8px">
-          <div style="flex:1;min-width:0">
-            <span class="cliente-rname" style="display:block;font-size:15px;font-weight:700;color:var(--texto)">${cl.nome}</span>
-            <span style="display:block;font-size:12px;color:var(--muted);margin-top:2px">📱 ${telFmt}</span>
-          </div>
-          ${temCel?`<button onclick="abrirWhatsApp('${cl.celular}','${cl.nome.replace(/'/g,"\\'")}');event.stopPropagation()" style="flex-shrink:0;padding:8px 12px;background:#1a4d2e;border:1.5px solid #25d366;border-radius:10px;color:#25d366;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px"><svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='#25d366'><path d='M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z'/></svg> WhatsApp</button>`:''}
-        </div>
-        <div class="cliente-rsub" style="margin-top:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <span>${cl.peds.length} pedido(s) · ${pago?'✅ Pago':'⏳ Em aberto'}</span>
-          ${diasLabel?`<span style="background:var(--superficie);border:1px solid var(--border);border-radius:20px;padding:2px 9px;font-size:11px;color:var(--dourado2)">🕐 ${diasLabel}</span>`:''}
-          <span style="color:var(--dourado2);font-weight:700">R$ ${tot.toFixed(2).replace('.',',')}</span>
-        </div>
-      </div>`;
-    }).join('');
-  }
+  html+=clienteIds.map(cid=>{
+    const ped=PEDIDOS.filter(p=>p.clienteId===cid);
+    const nome=ped[0].cliente;
+    const tot=ped.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+    const pago=ped.every(p=>p.pago);
+    return `<div class="cliente-row" onclick="verCliente('${cid}')">
+      <div class="cliente-row-top">
+        <span class="cliente-rname">${nome}</span>
+        <span class="cliente-rval" ${pago?'style="color:#5EFF8C"':''}>R$ ${tot.toFixed(2).replace('.',',')}</span>
+      </div>
+      <div class="cliente-rsub">${ped.length} pedido(s) · ${pago?'✅ Pago':'⏳ Em aberto'}</div>
+    </div>`;
+  }).join('');
 
   document.getElementById('caixaClientes').innerHTML=html;
 }
@@ -1152,7 +1087,7 @@ function renderChurrasqueiro(){
       const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
       const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
       return `<div class="pedido-card ${cardClass}">
-      <div class="pedido-num">Pedido #${p.id} · ${p.hora}${p.data?' · '+p.data:''} · Mesa ${p.mesa}</div>
+      <div class="pedido-num">Pedido #${p.id} · ${p.hora}${p.data?' · '+p.data:''}</div>
       <div style="margin:6px 0"><span class="tipo-badge ${tipoClass}" style="font-size:14px;padding:5px 12px">${tipoEmoji} ${tipoNome}</span></div>
       <div class="pedido-cliente">${p.cliente}</div>
       ${p.endereco?`<div style="font-size:13px;color:var(--dourado2);margin:6px 0;font-weight:600">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}${p.endereco.ref?' · Ref: '+p.endereco.ref:''}</div>`:''}
@@ -1312,25 +1247,51 @@ function renderCaixa(){
     </div>`:`<div class="section-title">Pedidos do dia</div>`}
     ${lista.length===0
       ?`<div class="empty-state"><div class="empty-icon">📋</div><p>Nenhum pedido em ${dataRef}</p></div>`
-      :lista.map(p=>{
-        const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
-        const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:p.status==='fazendo'?['badge-fazendo','Fazendo']:['badge-pronto','Pronto'];
-        const tipo=p.tipo||'local';
-        const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
-        const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
-        const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
-        const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
-        return `<div class="comanda-card ${cardClass}" style="margin-bottom:8px">
-          <div style="margin-bottom:4px"><span class="tipo-badge ${tipoClass}" style="font-size:13px;padding:4px 10px">${tipoEmoji} ${tipoNome}</span></div>
-          <div class="comanda-header">
-            <span class="comanda-nome">${p.cliente} · Mesa ${p.mesa}</span>
-            ${p.pago?`<span class="tag-pago">PAGO${p.pagamento?' · '+p.pagamento:''}</span>`:`<span class="badge ${bc}">${bt}</span>`}
-          </div>
-          <div style="font-size:12px;color:var(--muted)">#${p.id} · ${p.hora} · ${p.itens.length} item(ns)</div>
-          ${p.endereco?`<div style="font-size:11px;color:var(--dourado2);margin-top:2px">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}</div>`:''}
-          <div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R$ ${tot.toFixed(2).replace('.',',')}</div>
-        </div>`;
-      }).join('')}`;
+      :(_filtroResumo==='aberto'
+        ? (() => {
+            // Agrupa por cliente para mostrar botão Fechar por cliente
+            const mapaCli={};
+            lista.forEach(p=>{
+              if(!mapaCli[p.clienteId]) mapaCli[p.clienteId]={nome:p.cliente,celular:p.celular||'',peds:[]};
+              mapaCli[p.clienteId].peds.push(p);
+            });
+            return Object.values(mapaCli).map(cl=>{
+              const totCli=cl.peds.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+              const itensTodos=[];
+              cl.peds.forEach(p=>p.itens.forEach(i=>itensTodos.push(i)));
+              return \`<div class="comanda-card" style="margin-bottom:10px;border:1.5px solid var(--border)">
+                <div class="comanda-header" style="margin-bottom:6px">
+                  <span class="comanda-nome" style="font-size:15px">\${cl.nome}</span>
+                  <span style="font-size:12px;color:var(--muted)">\${cl.peds.length} pedido(s)</span>
+                </div>
+                <div style="margin-bottom:8px">
+                  \${itensTodos.map(i=>\`<div class="linha-item" style="font-size:13px"><span>\${i.qty}x \${i.nome}</span><span style="color:var(--dourado2)">R\$ \${(i.preco*i.qty).toFixed(2).replace('.',',')}</span></div>\`).join('')}
+                </div>
+                <div class="linha-total" style="margin-bottom:10px"><span>Total</span><span style="color:var(--dourado2);font-weight:700">R\$ \${totCli.toFixed(2).replace('.',',')}</span></div>
+                <button onclick="fecharComandaCaixa('\${cl.peds[0].clienteId}')" style="width:100%;padding:11px;background:#1a4d2e;border:1.5px solid #5EFF8C;border-radius:10px;color:#5EFF8C;font-weight:700;cursor:pointer;font-size:14px">💳 Fechar Comanda</button>
+              </div>\`;
+            }).join('');
+          })()
+        : lista.map(p=>{
+            const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
+            const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:p.status==='fazendo'?['badge-fazendo','Fazendo']:['badge-pronto','Pronto'];
+            const tipo=p.tipo||'local';
+            const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
+            const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
+            const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
+            const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
+            return \`<div class="comanda-card \${cardClass}" style="margin-bottom:8px">
+              <div style="margin-bottom:4px"><span class="tipo-badge \${tipoClass}" style="font-size:13px;padding:4px 10px">\${tipoEmoji} \${tipoNome}</span></div>
+              <div class="comanda-header">
+                <span class="comanda-nome">\${p.cliente}</span>
+                \${p.pago?\`<span class="tag-pago">PAGO\${p.pagamento?' · '+p.pagamento:''}</span>\`:\`<span class="badge \${bc}">\${bt}</span>\`}
+              </div>
+              <div style="font-size:12px;color:var(--muted)">#\${p.id} · \${p.hora} · \${p.itens.length} item(ns)</div>
+              \${p.endereco?\`<div style="font-size:11px;color:var(--dourado2);margin-top:2px">📍 \${p.endereco.rua}\${p.endereco.bairro?', '+p.endereco.bairro:''}</div>\`:''}
+              <div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R\$ \${tot.toFixed(2).replace('.',',')}</div>
+            </div>\`;
+          }).join('')
+      )}`;
 
   if(_filtroResumo!==null){
     document.getElementById('caixaRodape').classList.remove('hidden');
@@ -1364,7 +1325,7 @@ function verCliente(cid){
   document.getElementById('modalConteudo').innerHTML=ped.map(p=>{
     const sub=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);tot+=sub;
     return `<div class="comanda-card" style="margin-bottom:8px">
-      <div class="comanda-header"><span>#${p.id} · ${p.hora}</span><span style="font-size:12px;color:var(--muted)">Mesa ${p.mesa}</span></div>
+      <div class="comanda-header"><span>#${p.id} · ${p.hora}</span></div>
       ${p.itens.map(i=>`<div class="linha-item"><span>${i.qty}x ${i.nome}</span><span>R$ ${(i.preco*i.qty).toFixed(2).replace('.',',')}</span></div>`).join('')}
       <div class="linha-total"><span>Subtotal</span><span>R$ ${sub.toFixed(2).replace('.',',')}</span></div>
     </div>`;
@@ -1385,6 +1346,56 @@ function fecharConta(){
 }
 function fecharModal(){
   document.getElementById('modalOverlay').classList.add('hidden');
+}
+
+// Fechar comanda diretamente pelo caixa (sem solicitação do cliente)
+function fecharComandaCaixa(clienteId){
+  // Seletor de pagamento
+  const overlay=document.createElement('div');
+  overlay.className='modal-prod-overlay';
+  overlay.id='modalFechaCaixaOverlay';
+  const nome=PEDIDOS.find(p=>p.clienteId===clienteId)?.cliente||'cliente';
+  const peds=PEDIDOS.filter(p=>p.clienteId===clienteId&&!p.pago);
+  const total=peds.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+  overlay.innerHTML=`
+    <div class="modal-prod-box">
+      <div class="modal-title">💳 Fechar Comanda</div>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:4px">Cliente: <strong style="color:var(--texto)">${nome}</strong></p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Total: <strong style="color:var(--dourado2);font-size:17px">R$ ${total.toFixed(2).replace('.',',')}</strong></p>
+      <div class="form-label">Forma de pagamento</div>
+      <div class="pgto-grid">
+        <button class="pgto-btn" id="fcx-dinheiro" onclick="selecionarPgtoCaixa('Dinheiro')">💵<br>Dinheiro</button>
+        <button class="pgto-btn" id="fcx-pix" onclick="selecionarPgtoCaixa('Pix')">📱<br>Pix</button>
+        <button class="pgto-btn" id="fcx-debito" onclick="selecionarPgtoCaixa('Débito')">💳<br>Cartão Débito</button>
+        <button class="pgto-btn" id="fcx-credito" onclick="selecionarPgtoCaixa('Crédito')">💳<br>Cartão Crédito</button>
+      </div>
+      <button class="btn-salvar" onclick="confirmarFecharComandaCaixa('${clienteId}')" style="margin-top:8px">✅ Confirmar Fechamento</button>
+      <button class="btn-cancelar" onclick="document.getElementById('modalFechaCaixaOverlay').remove()">Cancelar</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+let _pgtoCaixaSelecionado=null;
+function selecionarPgtoCaixa(forma){
+  _pgtoCaixaSelecionado=forma;
+  document.querySelectorAll('#modalFechaCaixaOverlay .pgto-btn').forEach(b=>b.classList.remove('selected'));
+  const ids={Dinheiro:'fcx-dinheiro',Pix:'fcx-pix',Débito:'fcx-debito',Crédito:'fcx-credito'};
+  const el=document.getElementById(ids[forma]);
+  if(el) el.classList.add('selected');
+}
+
+function confirmarFecharComandaCaixa(clienteId){
+  if(!_pgtoCaixaSelecionado){alert('Selecione a forma de pagamento!');return;}
+  const agora=new Date();
+  const dataFecha=agora.toISOString().slice(0,10);
+  PEDIDOS.filter(p=>p.clienteId===clienteId&&!p.pago).forEach(p=>{
+    if(p.fbKey) fbUpdate('pedidos/'+p.fbKey,{pago:true,pagamento:_pgtoCaixaSelecionado,dataFecha});
+  });
+  fbRemove('solicitacoes/'+clienteId);
+  document.getElementById('modalFechaCaixaOverlay')?.remove();
+  _pgtoCaixaSelecionado=null;
+  const nome=PEDIDOS.find(p=>p.clienteId===clienteId)?.cliente||'cliente';
+  mostrarToast('✅ Comanda de '+nome+' fechada!');
 }
 
 // ── GESTÃO DE CARDÁPIO (CAIXA) ─────────────────────────────────────────
@@ -1611,8 +1622,11 @@ function aplicarFiltroHist(){
   cont.innerHTML=grupos.map(g=>`
     <div class="hist-card">
       <div class="hist-header">
-        <span class="hist-nome">👤 ${g.nome} · Mesa ${g.mesa}</span>
-        <span class="hist-pgto ${pgtoClass[g.pagamento]||''}">${g.pagamento}</span>
+        <span class="hist-nome">👤 ${g.nome}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="hist-pgto ${pgtoClass[g.pagamento]||''}">${g.pagamento}</span>
+          <button onclick="excluirHistorico('${g.cid}','${g.dataFecha}')" style="background:#3d0a0a;border:1px solid #7a1a1a;border-radius:7px;color:#ff6b6b;font-size:12px;cursor:pointer;padding:3px 8px" title="Excluir registro">🗑️</button>
+        </div>
       </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${g.dataFecha?g.dataFecha.split('-').reverse().join('/'):'s/data'} · ${g.hora}</div>
       <div style="margin-bottom:6px">
@@ -1637,6 +1651,17 @@ function limparFiltroHist(){
   _histFiltroPgto='todos';
   renderHistorico();
 }
+function excluirHistorico(clienteId, dataFecha){
+  const nome=PEDIDOS.find(p=>p.clienteId===clienteId)?.cliente||'este cliente';
+  const confirmar=confirm(`⚠️ Tem certeza que deseja excluir o registro de "${nome}"?\n\nEsta ação não poderá ser desfeita e o pedido não será mais visualizado no histórico.`);
+  if(!confirmar) return;
+  // Remove todos os pedidos pagos deste cliente com esta dataFecha
+  PEDIDOS.filter(p=>p.clienteId===clienteId&&p.pago&&(p.dataFecha===dataFecha||!p.dataFecha&&!dataFecha)).forEach(p=>{
+    if(p.fbKey) fbRemove('pedidos/'+p.fbKey);
+  });
+  mostrarToast('🗑️ Registro excluído do histórico.');
+}
+
 // ───────────────────────────────────────────────────────────────────────
 
 document.getElementById('pinInput').addEventListener('keyup',e=>{if(e.key==='Enter')entrar();});
