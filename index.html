@@ -481,6 +481,12 @@ window.addEventListener('load', ()=>{ iniciarFirebase(_FB_CONFIG); });
 let roleAtual=null,clienteNome='',clienteMesa='',clienteCelular='',clienteIdAtual='';
 let carrinho={};
 let catAtiva='todos',abaChurrasAtiva='fila',abaCaixaAtiva='resumo',clienteAbaAtiva='cardapio';
+
+function hojeDD_MM_YYYY(){
+  const d=new Date();
+  return d.getDate().toString().padStart(2,'0')+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getFullYear();
+}
+let _filtroDataProntos=hojeDD_MM_YYYY();
 let _jaNotificados=new Set();
 let _pollingInterval=null;
 const PINOS={churrasqueiro:'1234',caixa:'4321'};
@@ -988,6 +994,10 @@ function fazerPedido(){
   const obs=document.getElementById('obsInput')?document.getElementById('obsInput').value:'';
   const agora=new Date();
   const hora=agora.getHours().toString().padStart(2,'0')+':'+agora.getMinutes().toString().padStart(2,'0');
+  const dia=agora.getDate().toString().padStart(2,'0');
+  const mes=(agora.getMonth()+1).toString().padStart(2,'0');
+  const ano=agora.getFullYear();
+  const data=`${dia}-${mes}-${ano}`;
   const key=fbKey();
   const pedido={
     id:pedidoIdSeq++,
@@ -999,6 +1009,7 @@ function fazerPedido(){
     status:'aguardando',
     obs,
     hora,
+    data,
     pago:false,
     tipo:_tipoPedido,
     endereco:_tipoPedido==='entrega'?{..._enderecoEntrega}:null
@@ -1030,15 +1041,36 @@ function renderChurrasqueiro(){
     <div class="fila-stat"><div class="fila-n" style="color:#D4A017">${ag.length}</div><div class="fila-l">Aguardando</div></div>
     <div class="fila-stat"><div class="fila-n" style="color:#FF6B6B">${fa.length}</div><div class="fila-l">Fazendo</div></div>
     <div class="fila-stat"><div class="fila-n" style="color:#5EFF8C">${pr.length}</div><div class="fila-l">Prontos</div></div>`;
+
   const mapa={fila:ag,fazendo:fa,prontos:pr};
-  const lista=mapa[abaChurrasAtiva];
-  document.getElementById('filaPedidos').innerHTML=lista.length===0
-    ?`<div class="empty-state"><div class="empty-icon">${abaChurrasAtiva==='fila'?'⏳':abaChurrasAtiva==='fazendo'?'🔥':'✅'}</div><p>Nenhum pedido aqui</p></div>`
+  let lista=mapa[abaChurrasAtiva];
+
+  // Filtro de data na aba Prontos
+  let filtroHTML='';
+  if(abaChurrasAtiva==='prontos'){
+    // Converte _filtroDataProntos (DD-MM-YYYY) para input type=date (YYYY-MM-DD)
+    const partes=_filtroDataProntos.split('-');
+    const inputVal=partes.length===3?`${partes[2]}-${partes[1]}-${partes[0]}`:'';
+    filtroHTML=`
+      <div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--muted);white-space:nowrap">📅 Filtrar por data:</span>
+        <input type="date" value="${inputVal}" onchange="filtrarDataProntos(this.value)"
+          style="flex:1;background:transparent;border:none;color:var(--dourado2);font-size:14px;font-weight:700;outline:none;cursor:pointer">
+        <button onclick="filtrarDataProntos('')" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;white-space:nowrap">Ver todos</button>
+      </div>`;
+    // Aplica filtro se data selecionada
+    if(_filtroDataProntos){
+      lista=lista.filter(p=>p.data===_filtroDataProntos);
+    }
+  }
+
+  document.getElementById('filaPedidos').innerHTML=filtroHTML+(lista.length===0
+    ?`<div class="empty-state"><div class="empty-icon">${abaChurrasAtiva==='fila'?'⏳':abaChurrasAtiva==='fazendo'?'🔥':'✅'}</div><p>${abaChurrasAtiva==='prontos'&&_filtroDataProntos?'Nenhum pedido pronto em '+_filtroDataProntos:'Nenhum pedido aqui'}</p></div>`
     :lista.map(p=>{
       const tipoLabel={'local':'🪑 Local','entrega':'🛵 Entrega','viagem':'🥡 Viagem'}[p.tipo]||'🪑 Local';
       const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[p.tipo]||'tipo-local';
       return `<div class="pedido-card">
-      <div class="pedido-num">Pedido #${p.id} · ${p.hora} · Mesa ${p.mesa} <span class="tipo-badge ${tipoClass}">${tipoLabel}</span></div>
+      <div class="pedido-num">Pedido #${p.id} · ${p.hora}${p.data?' · '+p.data:''} · Mesa ${p.mesa} <span class="tipo-badge ${tipoClass}">${tipoLabel}</span></div>
       <div class="pedido-cliente">${p.cliente}</div>
       ${p.endereco?`<div style="font-size:12px;color:var(--dourado2);margin:4px 0">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}${p.endereco.ref?' · '+p.endereco.ref:''}</div>`:''}
       <div class="pedido-itens">${p.itens.map(i=>`<div class="pedido-item"><span class="qty">${i.qty}x</span>${i.nome}</div>`).join('')}</div>
@@ -1048,7 +1080,18 @@ function renderChurrasqueiro(){
         ${p.status==='fazendo'?`<button class="btn-status btn-pronto" onclick="mudarStatus(${p.id},'pronto')">✅ Pronto!</button>`:''}
         ${p.status==='pronto'?`<span style="font-size:13px;color:#5EFF8C;font-weight:700">✅ Entregue!</span>`:''}
       </div>
-    </div>`;}).join('');
+    </div>`;}).join(''));
+}
+
+function filtrarDataProntos(inputVal){
+  if(!inputVal){
+    _filtroDataProntos=''; // Ver todos
+  } else {
+    // Converte YYYY-MM-DD para DD-MM-YYYY
+    const [ano,mes,dia]=inputVal.split('-');
+    _filtroDataProntos=`${dia}-${mes}-${ano}`;
+  }
+  renderChurrasqueiro();
 }
 
 function mudarStatus(id,novoStatus){
