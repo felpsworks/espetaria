@@ -1034,34 +1034,40 @@ function abaChurras(aba,el){
 }
 
 function renderChurrasqueiro(){
+  const hoje=new Date();
+  const hojeStr=`${String(hoje.getDate()).padStart(2,'0')}-${String(hoje.getMonth()+1).padStart(2,'0')}-${hoje.getFullYear()}`;
+
   const ag=PEDIDOS.filter(p=>p.status==='aguardando');
   const fa=PEDIDOS.filter(p=>p.status==='fazendo');
   const pr=PEDIDOS.filter(p=>p.status==='pronto');
+
+  // Contador de prontos: usa filtro ativo se na aba prontos, senão usa hoje
+  const dataContador=abaChurrasAtiva==='prontos'&&_filtroDataProntos?_filtroDataProntos:hojeStr;
+  const prContador=pr.filter(p=>p.data===dataContador);
+
   document.getElementById('filaInfo').innerHTML=`
     <div class="fila-stat"><div class="fila-n" style="color:#D4A017">${ag.length}</div><div class="fila-l">Aguardando</div></div>
     <div class="fila-stat"><div class="fila-n" style="color:#FF6B6B">${fa.length}</div><div class="fila-l">Fazendo</div></div>
-    <div class="fila-stat"><div class="fila-n" style="color:#5EFF8C">${pr.length}</div><div class="fila-l">Prontos</div></div>`;
+    <div class="fila-stat"><div class="fila-n" style="color:#5EFF8C">${prContador.length}</div><div class="fila-l">Prontos${abaChurrasAtiva==='prontos'&&_filtroDataProntos&&_filtroDataProntos!==hojeStr?'<br><span style="font-size:9px">'+_filtroDataProntos+'</span>':' hoje'}</div></div>`;
 
   const mapa={fila:ag,fazendo:fa,prontos:pr};
   let lista=mapa[abaChurrasAtiva];
 
-  // Filtro de data na aba Prontos
+  // Filtro de data na aba Prontos — padrão é hoje
   let filtroHTML='';
   if(abaChurrasAtiva==='prontos'){
-    // Converte _filtroDataProntos (DD-MM-YYYY) para input type=date (YYYY-MM-DD)
-    const partes=_filtroDataProntos.split('-');
+    const dataFiltro=_filtroDataProntos||hojeStr;
+    const partes=dataFiltro.split('-');
     const inputVal=partes.length===3?`${partes[2]}-${partes[1]}-${partes[0]}`:'';
     filtroHTML=`
       <div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px">
         <span style="font-size:13px;color:var(--muted);white-space:nowrap">📅 Filtrar por data:</span>
         <input type="date" value="${inputVal}" onchange="filtrarDataProntos(this.value)"
           style="flex:1;background:transparent;border:none;color:var(--dourado2);font-size:14px;font-weight:700;outline:none;cursor:pointer">
-        <button onclick="filtrarDataProntos('')" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;white-space:nowrap">Ver todos</button>
+        ${_filtroDataProntos&&_filtroDataProntos!==hojeStr?`<button onclick="filtrarDataProntos('')" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;white-space:nowrap">Hoje</button>`:''}
       </div>`;
-    // Aplica filtro se data selecionada
-    if(_filtroDataProntos){
-      lista=lista.filter(p=>p.data===_filtroDataProntos);
-    }
+    // Aplica filtro
+    lista=lista.filter(p=>p.data===dataFiltro);
   }
 
   document.getElementById('filaPedidos').innerHTML=filtroHTML+(lista.length===0
@@ -1085,9 +1091,8 @@ function renderChurrasqueiro(){
 
 function filtrarDataProntos(inputVal){
   if(!inputVal){
-    _filtroDataProntos=''; // Ver todos
+    _filtroDataProntos=''; // volta para hoje (padrão)
   } else {
-    // Converte YYYY-MM-DD para DD-MM-YYYY
     const [ano,mes,dia]=inputVal.split('-');
     _filtroDataProntos=`${dia}-${mes}-${ano}`;
   }
