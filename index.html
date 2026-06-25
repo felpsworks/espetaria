@@ -1189,6 +1189,31 @@ function abaCaixa(aba,el){
   else { _filtroResumo=null; renderCaixa(); }
 }
 
+function renderComandasAbertas(lista){
+  const mapaCli={};
+  lista.forEach(function(p){
+    if(!mapaCli[p.clienteId]) mapaCli[p.clienteId]={nome:p.cliente,peds:[]};
+    mapaCli[p.clienteId].peds.push(p);
+  });
+  return Object.values(mapaCli).map(function(cl){
+    const totCli=cl.peds.reduce(function(s,p){return s+p.itens.reduce(function(ss,i){return ss+i.preco*i.qty;},0);},0);
+    const itensTodos=[];
+    cl.peds.forEach(function(p){p.itens.forEach(function(i){itensTodos.push(i);});});
+    const itensList=itensTodos.map(function(i){
+      return '<div class="linha-item" style="font-size:13px"><span>'+i.qty+'x '+i.nome+'</span><span style="color:var(--dourado2)">R$ '+(i.preco*i.qty).toFixed(2).replace('.',',')+'</span></div>';
+    }).join('');
+    return '<div class="comanda-card" style="margin-bottom:10px;border:1.5px solid var(--border)">'+
+      '<div class="comanda-header" style="margin-bottom:6px">'+
+        '<span class="comanda-nome" style="font-size:15px">'+cl.nome+'</span>'+
+        '<span style="font-size:12px;color:var(--muted)">'+cl.peds.length+' pedido(s)</span>'+
+      '</div>'+
+      '<div style="margin-bottom:8px">'+itensList+'</div>'+
+      '<div class="linha-total" style="margin-bottom:10px"><span>Total</span><span style="color:var(--dourado2);font-weight:700">R$ '+totCli.toFixed(2).replace('.',',')+'</span></div>'+
+      '<button onclick="fecharComandaCaixa(\''+cl.peds[0].clienteId+'\')" style="width:100%;padding:11px;background:#1a4d2e;border:1.5px solid #5EFF8C;border-radius:10px;color:#5EFF8C;font-weight:700;cursor:pointer;font-size:14px">💳 Fechar Comanda</button>'+
+    '</div>';
+  }).join('');
+}
+
 function renderCaixa(){
   // Data de referência
   const agora=new Date();
@@ -1248,30 +1273,7 @@ function renderCaixa(){
     ${lista.length===0
       ?`<div class="empty-state"><div class="empty-icon">📋</div><p>Nenhum pedido em ${dataRef}</p></div>`
       :(_filtroResumo==='aberto'
-        ? (() => {
-            // Agrupa por cliente para mostrar botão Fechar por cliente
-            const mapaCli={};
-            lista.forEach(p=>{
-              if(!mapaCli[p.clienteId]) mapaCli[p.clienteId]={nome:p.cliente,celular:p.celular||'',peds:[]};
-              mapaCli[p.clienteId].peds.push(p);
-            });
-            return Object.values(mapaCli).map(cl=>{
-              const totCli=cl.peds.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
-              const itensTodos=[];
-              cl.peds.forEach(p=>p.itens.forEach(i=>itensTodos.push(i)));
-              return \`<div class="comanda-card" style="margin-bottom:10px;border:1.5px solid var(--border)">
-                <div class="comanda-header" style="margin-bottom:6px">
-                  <span class="comanda-nome" style="font-size:15px">\${cl.nome}</span>
-                  <span style="font-size:12px;color:var(--muted)">\${cl.peds.length} pedido(s)</span>
-                </div>
-                <div style="margin-bottom:8px">
-                  \${itensTodos.map(i=>\`<div class="linha-item" style="font-size:13px"><span>\${i.qty}x \${i.nome}</span><span style="color:var(--dourado2)">R\$ \${(i.preco*i.qty).toFixed(2).replace('.',',')}</span></div>\`).join('')}
-                </div>
-                <div class="linha-total" style="margin-bottom:10px"><span>Total</span><span style="color:var(--dourado2);font-weight:700">R\$ \${totCli.toFixed(2).replace('.',',')}</span></div>
-                <button onclick="fecharComandaCaixa('\${cl.peds[0].clienteId}')" style="width:100%;padding:11px;background:#1a4d2e;border:1.5px solid #5EFF8C;border-radius:10px;color:#5EFF8C;font-weight:700;cursor:pointer;font-size:14px">💳 Fechar Comanda</button>
-              </div>\`;
-            }).join('');
-          })()
+        ? renderComandasAbertas(lista)
         : lista.map(p=>{
             const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
             const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:p.status==='fazendo'?['badge-fazendo','Fazendo']:['badge-pronto','Pronto'];
@@ -1280,16 +1282,16 @@ function renderCaixa(){
             const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
             const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
             const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
-            return \`<div class="comanda-card \${cardClass}" style="margin-bottom:8px">
-              <div style="margin-bottom:4px"><span class="tipo-badge \${tipoClass}" style="font-size:13px;padding:4px 10px">\${tipoEmoji} \${tipoNome}</span></div>
-              <div class="comanda-header">
-                <span class="comanda-nome">\${p.cliente}</span>
-                \${p.pago?\`<span class="tag-pago">PAGO\${p.pagamento?' · '+p.pagamento:''}</span>\`:\`<span class="badge \${bc}">\${bt}</span>\`}
-              </div>
-              <div style="font-size:12px;color:var(--muted)">#\${p.id} · \${p.hora} · \${p.itens.length} item(ns)</div>
-              \${p.endereco?\`<div style="font-size:11px;color:var(--dourado2);margin-top:2px">📍 \${p.endereco.rua}\${p.endereco.bairro?', '+p.endereco.bairro:''}</div>\`:''}
-              <div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R\$ \${tot.toFixed(2).replace('.',',')}</div>
-            </div>\`;
+            return '<div class="comanda-card '+cardClass+'" style="margin-bottom:8px">'+
+              '<div style="margin-bottom:4px"><span class="tipo-badge '+tipoClass+'" style="font-size:13px;padding:4px 10px">'+tipoEmoji+' '+tipoNome+'</span></div>'+
+              '<div class="comanda-header">'+
+                '<span class="comanda-nome">'+p.cliente+'</span>'+
+                (p.pago?'<span class="tag-pago">PAGO'+(p.pagamento?' · '+p.pagamento:'')+'</span>':'<span class="badge '+bc+'">'+bt+'</span>')+
+              '</div>'+
+              '<div style="font-size:12px;color:var(--muted)">#'+p.id+' · '+p.hora+' · '+p.itens.length+' item(ns)</div>'+
+              (p.endereco?'<div style="font-size:11px;color:var(--dourado2);margin-top:2px">📍 '+p.endereco.rua+(p.endereco.bairro?', '+p.endereco.bairro:'')+'</div>':'')+
+              '<div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R$ '+tot.toFixed(2).replace('.',',')+'</div>'+
+            '</div>';
           }).join('')
       )}`;
 
