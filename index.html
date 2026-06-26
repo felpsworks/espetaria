@@ -1007,9 +1007,13 @@ function atualizarBadgeCaixa(){
 }
 
 function renderCaixaClientes(){
-  const clienteIds=[...new Set(PEDIDOS.map(p=>p.clienteId))];
+  // Respeita o mesmo filtro de data do resumo
+  const agora=new Date();
+  const hojeStr=`${String(agora.getDate()).padStart(2,'0')}-${String(agora.getMonth()+1).padStart(2,'0')}-${agora.getFullYear()}`;
+  const dataRef=_filtroDataCaixa||hojeStr;
+  const pedidosDia=PEDIDOS.filter(p=>p.data===dataRef);
+  const clienteIds=[...new Set(pedidosDia.map(p=>p.clienteId))];
   let html='';
-
   // Solicitações de fechamento pendentes no topo
   if(SOLICITACOES.length>0){
     html+=`<div class="section-title" style="color:#5EFF8C;margin-bottom:10px">🔔 Solicitações de Fechamento (${SOLICITACOES.length})</div>`;
@@ -1033,8 +1037,12 @@ function renderCaixaClientes(){
     html+=`<div class="section-title" style="margin-top:16px;margin-bottom:10px">👥 Todos os Clientes</div>`;
   }
 
-  html+=clienteIds.map(cid=>{
-    const ped=PEDIDOS.filter(p=>p.clienteId===cid);
+  // Clientes em aberto no topo, pagos embaixo
+  const abertos=clienteIds.filter(cid=>pedidosDia.filter(p=>p.clienteId===cid).some(p=>!p.pago));
+  const fechados=clienteIds.filter(cid=>pedidosDia.filter(p=>p.clienteId===cid).every(p=>p.pago));
+
+  function rowCliente(cid){
+    const ped=pedidosDia.filter(p=>p.clienteId===cid);
     const nome=ped[0].cliente;
     const tot=ped.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
     const pago=ped.every(p=>p.pago);
@@ -1045,12 +1053,27 @@ function renderCaixaClientes(){
         <span class="cliente-rval" ${pago?'style="color:#5EFF8C"':''}>R$ ${tot.toFixed(2).replace('.',',')}</span>
       </div>
       <div class="cliente-rsub" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span>${ped.length} pedido(s) · ${pago?'✅ Pago':'⏳ Em aberto'}</span>
+        <span>${ped.length} pedido(s)</span>
+        ${pago?'<span style="background:#004A1A;color:#5EFF8C;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">✅ PAGO</span>':''}
         ${!pago && temSolicitacao?'<span style="background:#4A3000;color:#F0C040;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid #F0C040">💳 AGUARDANDO PAGAMENTO</span>':''}
         ${!pago && !temSolicitacao?'<span style="background:#1a0a00;color:var(--muted);font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid var(--border)">🍢 CONSUMINDO</span>':''}
       </div>
     </div>`;
-  }).join('');
+  }
+
+  if(abertos.length>0){
+    html+=`<div class="section-title" style="margin-bottom:8px">⏳ Em aberto (${abertos.length})</div>`;
+    html+=abertos.map(rowCliente).join('');
+  }
+
+  if(fechados.length>0){
+    html+=`<div class="section-title" style="margin-top:16px;margin-bottom:8px;color:#5EFF8C">✅ Pagos (${fechados.length})</div>`;
+    html+=fechados.map(rowCliente).join('');
+  }
+
+  if(clienteIds.length===0){
+    html+=`<div class="empty-state"><div class="empty-icon">👥</div><p>Nenhum cliente hoje ainda.</p></div>`;
+  }
 
   document.getElementById('caixaClientes').innerHTML=html;
 }
@@ -1418,7 +1441,10 @@ function filtroResumo(tipo){
 }
 
 function verCliente(cid){
-  const ped=PEDIDOS.filter(p=>p.clienteId===cid);
+  const agora=new Date();
+  const hojeStr=`${String(agora.getDate()).padStart(2,'0')}-${String(agora.getMonth()+1).padStart(2,'0')}-${agora.getFullYear()}`;
+  const dataRef=_filtroDataCaixa||hojeStr;
+  const ped=PEDIDOS.filter(p=>p.clienteId===cid&&p.data===dataRef);
   const nome=ped[0]?.cliente||cid;
   let tot=0;
   document.getElementById('modalTitle').textContent='👤 '+nome;
