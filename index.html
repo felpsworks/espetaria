@@ -416,6 +416,7 @@ function registrarListeners(){
     if(abriu) return;
     abriu=true;
     document.getElementById('fbLoadingScreen').style.display='none';
+    restaurarSessao();
   }
 
   // Abre em até 8s independente do que acontecer
@@ -604,12 +605,16 @@ function entrar(){
     mostrarTela('clienteScreen');
     iniciarPolling();
     renderCardapio();
+    // Salva sessão
+    localStorage.setItem('espetaria_sessao', JSON.stringify({role:'cliente',celular:clienteCelular,nome:clienteNome,mesa:clienteMesa,idSeq:clienteIdSeq}));
   } else {
     const pin=document.getElementById('pinInput').value;
     if(pin!==PINOS[roleAtual]){alert('PIN incorreto!');return;}
     mostrarTela(roleAtual==='churrasqueiro'?'churrasqueiroScreen':'caixaScreen');
     if(roleAtual==='churrasqueiro')renderChurrasqueiro();
     else renderCaixa();
+    // Salva sessão
+    localStorage.setItem('espetaria_sessao', JSON.stringify({role:roleAtual}));
   }
 }
 
@@ -655,6 +660,8 @@ function pararPolling(){
 function sair(){
   // Remove solicitação pendente deste cliente no Firebase
   if(clienteIdAtual) fbRemove('solicitacoes/'+clienteIdAtual);
+  // Limpa sessão salva
+  localStorage.removeItem('espetaria_sessao');
 
   roleAtual=null;
   clienteNome='';clienteCelular='';clienteIdAtual='';clienteMesa='';
@@ -674,6 +681,61 @@ function sair(){
     t.classList.toggle('active', i===0);
   });
   mostrarTela('loginScreen');
+}
+
+function restaurarSessao(){
+  try{
+    const raw=localStorage.getItem('espetaria_sessao');
+    if(!raw) return;
+    const s=JSON.parse(raw);
+    if(!s||!s.role) return;
+
+    if(s.role==='cliente'){
+      const cel=s.celular||'';
+      // Verifica se o cliente ainda tem pedidos abertos (sessão válida)
+      const existente=PEDIDOS.find(p=>p.clienteId===cel&&!p.pago);
+      if(!existente && !CLIENTES[cel]){
+        // Nenhum pedido aberto nem cadastro — não restaura
+        localStorage.removeItem('espetaria_sessao');
+        return;
+      }
+      roleAtual='cliente';
+      clienteCelular=cel;
+      clienteIdAtual=cel;
+      if(existente){
+        clienteNome=existente.cliente;
+        clienteMesa=existente.mesa;
+      } else {
+        clienteNome=s.nome||CLIENTES[cel]||'';
+        clienteMesa=s.mesa||'1';
+        clienteIdSeq=s.idSeq||clienteIdSeq;
+      }
+      document.getElementById('clienteNomeHeader').textContent=clienteNome;
+      document.getElementById('clienteIdDisplay').textContent='#'+String(clienteIdSeq).padStart(4,'0');
+      carrinho={};
+      clienteAbaAtiva='cardapio';
+      document.getElementById('clienteCardapio').classList.remove('hidden');
+      document.getElementById('clienteComanda').classList.add('hidden');
+      document.querySelectorAll('#clienteScreen .tab').forEach((t,i)=>{
+        t.classList.toggle('active', i===0);
+      });
+      mostrarTela('clienteScreen');
+      iniciarPolling();
+      renderCardapio();
+
+    } else if(s.role==='churrasqueiro'){
+      roleAtual='churrasqueiro';
+      mostrarTela('churrasqueiroScreen');
+      renderChurrasqueiro();
+
+    } else if(s.role==='caixa'){
+      roleAtual='caixa';
+      mostrarTela('caixaScreen');
+      renderCaixa();
+    }
+  }catch(e){
+    localStorage.removeItem('espetaria_sessao');
+  }
 }
 
 function mostrarTela(id){
@@ -976,12 +1038,17 @@ function renderCaixaClientes(){
     const nome=ped[0].cliente;
     const tot=ped.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
     const pago=ped.every(p=>p.pago);
+    const temSolicitacao=SOLICITACOES.some(s=>s.clienteId===cid);
     return `<div class="cliente-row" onclick="verCliente('${cid}')">
       <div class="cliente-row-top">
         <span class="cliente-rname">${nome}</span>
         <span class="cliente-rval" ${pago?'style="color:#5EFF8C"':''}>R$ ${tot.toFixed(2).replace('.',',')}</span>
       </div>
-      <div class="cliente-rsub">${ped.length} pedido(s) · ${pago?'✅ Pago':'⏳ Em aberto'}</div>
+      <div class="cliente-rsub" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span>${ped.length} pedido(s) · ${pago?'✅ Pago':'⏳ Em aberto'}</span>
+        ${!pago && temSolicitacao?'<span style="background:#4A3000;color:#F0C040;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid #F0C040">💳 AGUARDANDO PAGAMENTO</span>':''}
+        ${!pago && !temSolicitacao?'<span style="background:#1a0a00;color:var(--muted);font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;border:1px solid var(--border)">🍢 CONSUMINDO</span>':''}
+      </div>
     </div>`;
   }).join('');
 
@@ -992,9 +1059,11 @@ function confirmarFechamentoCaixa(clienteId, idx){
   const s=SOLICITACOES[idx];
   const agora=new Date();
   const dataFecha=agora.toISOString().slice(0,10);
+  const nomeCliente=PEDIDOS.find(p=>p.clienteId===clienteId)?.cliente||'';
   PEDIDOS.filter(p=>p.clienteId===clienteId).forEach(p=>{
     if(p.fbKey) fbUpdate('pedidos/'+p.fbKey,{pago:true,pagamento:s.pagamento,dataFecha});
   });
+  if(nomeCliente && clienteId) fbSet('clientes/'+clienteId, nomeCliente);
   fbRemove('solicitacoes/'+clienteId);
   mostrarToast('✅ Conta fechada com sucesso!');
 }
@@ -1051,8 +1120,10 @@ function fazerPedido(){
   };
   fbSet('pedidos/'+key, pedido).catch(e=>alert('Erro ao enviar pedido: '+e.message));
   carrinho={};
+  renderCardapio();
   renderComanda();
   atualizarTotalBar();
+  mostrarToast('🔥 Pedido enviado ao churrasqueiro!');
 }
 
 function limparCarrinho(){
@@ -1422,14 +1493,8 @@ function confirmarFecharComandaCaixa(clienteId){
   pedidosCliente.forEach(p=>{
     if(p.fbKey) fbUpdate('pedidos/'+p.fbKey,{pago:true,pagamento:_pgtoCaixaSelecionado,dataFecha});
   });
-  // Salva nome do cliente para login futuro e remove pedidos após pequeno delay
+  // Salva nome do cliente para login futuro
   if(nomeCliente && clienteId) fbSet('clientes/'+clienteId, nomeCliente);
-  // Remove pedidos pagos após salvar no histórico
-  setTimeout(()=>{
-    PEDIDOS.filter(p=>p.clienteId===clienteId&&p.pago).forEach(p=>{
-      if(p.fbKey) fbRemove('pedidos/'+p.fbKey);
-    });
-  }, 500);
   fbRemove('solicitacoes/'+clienteId);
   document.getElementById('modalFechaCaixaOverlay')?.remove();
   _pgtoCaixaSelecionado=null;
