@@ -274,7 +274,7 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
       <span class="total-bar-valor" id="totalBarValor">R$ 0,00</span>
       <span class="total-bar-itens" id="totalBarItens">0 itens</span>
     </div>
-    <button class="btn-ver-comanda" onclick="abrirModalComanda()">Ver Comanda →</button>
+    <button class="btn-ver-comanda" onclick="abaCliente('comanda',document.getElementById('tabComanda'))">Ver Comanda →</button>
   </div>
 </div>
 
@@ -347,6 +347,7 @@ let CARDAPIO  = [];
 let PEDIDOS   = [];
 let CATEGORIAS= [];
 let SOLICITACOES = [];
+let CLIENTES  = {}; // { celular: nome }
 let pedidoIdSeq  = 1;
 let clienteIdSeq = 1;
 
@@ -465,6 +466,12 @@ function registrarListeners(){
     if(roleAtual==='caixa'&&abaCaixaAtiva==='clientes') renderCaixaClientes();
     abrirApp();
   }, err=>{ console.error('solicitacoes',err); abrirApp(); });
+
+  // CLIENTES (mapa celular→nome para login rápido)
+  db.ref('clientes').on('value', snap=>{
+    CLIENTES = snap.exists() ? snap.val() : {};
+    abrirApp();
+  }, err=>{ console.error('clientes',err); abrirApp(); });
 }
 
 // Substitui o polling de notificações por verificação nos dados já recebidos
@@ -545,6 +552,12 @@ function formatarCelular(input){
   else if(v.length>2) v=`(${v.slice(0,2)}) ${v.slice(2)}`;
   else if(v.length>0) v=`(${v}`;
   input.value=v;
+  // Preenche nome automaticamente se celular já cadastrado
+  const cel=v.replace(/\D/g,'');
+  if(cel.length>=10 && CLIENTES[cel]){
+    const nomeInput=document.getElementById('nomeInput');
+    if(nomeInput && !nomeInput.value) nomeInput.value=CLIENTES[cel];
+  }
 }
 
 function selecionarRole(role){
@@ -560,7 +573,7 @@ function entrar(){
   if(roleAtual==='cliente'){
     const n=document.getElementById('nomeInput').value.trim();
     const cel=document.getElementById('celularInput').value.replace(/\D/g,'');
-    if(!n){alert('Digite seu nome!');return;}
+    if(!n && !CLIENTES[cel]){alert('Digite seu nome!');return;}
     if(cel.length<10){alert('Digite um celular válido!');return;}
     // Verifica se já existe cliente com mesmo celular
     const existente=PEDIDOS.find(p=>p.clienteId===cel);
@@ -571,7 +584,8 @@ function entrar(){
       clienteIdAtual=cel;
       clienteMesa=existente.mesa;
     } else {
-      clienteNome=n;clienteCelular=cel;clienteIdAtual=cel;
+      clienteNome=n||CLIENTES[cel]||'';
+      clienteCelular=cel;clienteIdAtual=cel;
       clienteMesa=String(Math.floor(Math.random()*10)+1);
       clienteIdSeq++;
     }
@@ -792,7 +806,12 @@ function renderComanda(){
   const temPedidosAbertos=meusPedidos.some(p=>!p.pago);
   const jasolicitou=SOLICITACOES.some(s=>s.clienteId===clienteIdAtual);
   if(temPedidosAbertos && !jasolicitou){
-    html+=`<button class="btn-fechar-conta" onclick="abrirModalPagamento()">🧾 Solicitar Fechamento da Conta</button>`;
+    const todosProntos=meusPedidos.filter(p=>!p.pago).every(p=>p.status==='pronto');
+    if(todosProntos){
+      html+=`<button class="btn-fechar-conta" onclick="abrirModalPagamento()">🧾 Solicitar Fechamento da Conta</button>`;
+    } else {
+      html+=`<button class="btn-fechar-conta" disabled style="opacity:.4;cursor:not-allowed;border-color:var(--border);color:var(--muted)" title="Aguarde todos os pedidos ficarem prontos">⏳ Aguardando pedidos ficarem prontos...</button>`;
+    }
   } else if(jasolicitou){
     html+=`<div style="text-align:center;padding:14px;background:#0d2b1a;border:2px solid #5EFF8C;border-radius:12px;margin-top:12px;color:#5EFF8C;font-weight:700">✅ Solicitação enviada ao caixa!<br><span style="font-size:12px;font-weight:400;color:var(--muted)">Aguarde o caixa confirmar o fechamento.</span></div>`;
   }
@@ -1398,13 +1417,23 @@ function confirmarFecharComandaCaixa(clienteId){
   if(!_pgtoCaixaSelecionado){alert('Selecione a forma de pagamento!');return;}
   const agora=new Date();
   const dataFecha=agora.toISOString().slice(0,10);
-  PEDIDOS.filter(p=>p.clienteId===clienteId&&!p.pago).forEach(p=>{
+  const pedidosCliente=PEDIDOS.filter(p=>p.clienteId===clienteId&&!p.pago);
+  const nomeCliente=pedidosCliente[0]?.cliente||PEDIDOS.find(p=>p.clienteId===clienteId)?.cliente||'';
+  pedidosCliente.forEach(p=>{
     if(p.fbKey) fbUpdate('pedidos/'+p.fbKey,{pago:true,pagamento:_pgtoCaixaSelecionado,dataFecha});
   });
+  // Salva nome do cliente para login futuro e remove pedidos após pequeno delay
+  if(nomeCliente && clienteId) fbSet('clientes/'+clienteId, nomeCliente);
+  // Remove pedidos pagos após salvar no histórico
+  setTimeout(()=>{
+    PEDIDOS.filter(p=>p.clienteId===clienteId&&p.pago).forEach(p=>{
+      if(p.fbKey) fbRemove('pedidos/'+p.fbKey);
+    });
+  }, 500);
   fbRemove('solicitacoes/'+clienteId);
   document.getElementById('modalFechaCaixaOverlay')?.remove();
   _pgtoCaixaSelecionado=null;
-  const nome=PEDIDOS.find(p=>p.clienteId===clienteId)?.cliente||'cliente';
+  const nome=nomeCliente||'cliente';
   mostrarToast('✅ Comanda de '+nome+' fechada!');
 }
 
