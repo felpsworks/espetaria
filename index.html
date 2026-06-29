@@ -78,7 +78,6 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 .comanda-nome{font-size:15px;font-weight:600;color:var(--texto)}
 .badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
 .badge-aguard{background:#4A3000;color:var(--dourado2)}
-.badge-fazendo{background:#4A0000;color:#FF6B6B}
 .badge-pronto{background:#004A1A;color:#5EFF8C}
 .linha-item{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)}
 .linha-item:last-of-type{border:none}
@@ -105,8 +104,6 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 .pedido-item .qty{color:var(--dourado2);font-weight:700;min-width:24px}
 .pedido-obs{font-size:12px;color:var(--muted);margin-top:6px;font-style:italic}
 .btn-status{padding:8px 16px;border-radius:8px;border:none;font-size:13px;font-weight:700;cursor:pointer;transition:.2s}
-.btn-fazer{background:#4A0000;color:#FF6B6B;border:1px solid #FF6B6B}
-.btn-fazer:hover{background:#7A0000}
 .btn-pronto{background:#004A1A;color:#5EFF8C;border:1px solid #5EFF8C}
 .btn-pronto:hover{background:#006A22}
 .pedido-actions{display:flex;gap:8px;margin-top:10px}
@@ -242,7 +239,6 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
       <button class="btn-entrar" onclick="entrar()">Entrar</button>
     </div>
     <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;gap:8px;justify-content:center">
-      <button class="btn-sair" style="font-size:11px;padding:5px 10px;opacity:.7" onclick="selecionarRole('churrasqueiro')">🔥 Churrasqueiro</button>
       <button class="btn-sair" style="font-size:11px;padding:5px 10px;opacity:.7" onclick="selecionarRole('caixa')">💰 Caixa</button>
     </div>
   </div>
@@ -279,25 +275,6 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
 </div>
 
 <!-- CHURRASQUEIRO -->
-<div id="churrasqueiroScreen" class="screen">
-  <div class="header">
-    <div class="header-left">
-      <span class="header-icon">🔥</span>
-      <div><div class="header-title">Churrasqueiro</div><div class="header-sub">Fila de pedidos</div></div>
-    </div>
-    <button class="btn-sair" onclick="sair()">Sair</button>
-  </div>
-  <div class="tabs">
-    <button class="tab active" onclick="abaChurras('fila',this)">⏳ Aguardando</button>
-    <button class="tab" onclick="abaChurras('fazendo',this)">🔥 Fazendo</button>
-    <button class="tab" onclick="abaChurras('prontos',this)">✅ Prontos</button>
-  </div>
-  <div class="content">
-    <div class="fila-info" id="filaInfo"></div>
-    <div id="filaPedidos"></div>
-  </div>
-</div>
-
 <!-- CAIXA -->
 <div id="caixaScreen" class="screen">
   <div class="header">
@@ -311,13 +288,15 @@ body{background:var(--escuro);color:var(--texto);min-height:100vh}
     </div>
   </div>
   <div class="tabs" style="overflow-x:auto;white-space:nowrap;flex-wrap:nowrap">
-    <button class="tab active" onclick="abaCaixa('resumo',this)">📊 Resumo</button>
+    <button class="tab active" onclick="abaCaixa('pedidos',this)">🛎️ Pedidos</button>
+    <button class="tab" onclick="abaCaixa('resumo',this)">📊 Resumo</button>
     <button class="tab" onclick="abaCaixa('clientes',this)" id="tabClientes">👥 Clientes</button>
     <button class="tab" onclick="abaCaixa('cardapio',this)">🍢 Cardápio</button>
     <button class="tab" onclick="abaCaixa('historico',this)">📋 Histórico</button>
   </div>
   <div class="content" style="padding-bottom:80px">
-    <div id="caixaResumo"></div>
+    <div id="caixaPedidos"></div>
+    <div id="caixaResumo" class="hidden"></div>
     <div id="caixaClientes" class="hidden"></div>
     <div id="caixaCardapio" class="hidden"></div>
     <div id="caixaHistorico" class="hidden"></div>
@@ -458,8 +437,7 @@ function registrarListeners(){
       pedidoIdSeq=maxId+1;
     }
     if(roleAtual==='cliente'){ renderComanda(); verificarNotificacoes(); }
-    if(roleAtual==='churrasqueiro'){ renderChurrasqueiro(); verificarNotificacoesAdmin(); }
-    if(roleAtual==='caixa'){ renderCaixa(); atualizarBadgeCaixa(); verificarNotificacoesAdmin(); }
+    if(roleAtual==='caixa'){ renderCaixa(); renderFilaCaixa(); atualizarBadgeCaixa(); verificarNotificacoesAdmin(); }
     abrirApp();
   }, err=>{ console.error('pedidos',err); abrirApp(); });
 
@@ -493,7 +471,7 @@ function verificarNotificacoes(){
 
 
 function verificarNotificacoesAdmin(){
-  if(roleAtual!=='churrasqueiro'&&roleAtual!=='caixa') return;
+  if(roleAtual!=='caixa') return;
   const novos=PEDIDOS.filter(p=>p.status==='aguardando'&&!p.pago);
   novos.forEach(p=>{
     const pid=p.fbKey||p.id;
@@ -521,7 +499,7 @@ window.addEventListener('load', ()=>{ iniciarFirebase(_FB_CONFIG); });
 
 let roleAtual=null,clienteNome='',clienteMesa='',clienteCelular='',clienteIdAtual='';
 let carrinho={};
-let catAtiva='todos',abaChurrasAtiva='fila',abaCaixaAtiva='resumo',clienteAbaAtiva='cardapio';
+let catAtiva='todos',abaCaixaAtiva='pedidos',clienteAbaAtiva='cardapio';
 
 function hojeDD_MM_YYYY(){
   const d=new Date();
@@ -531,7 +509,7 @@ let _filtroDataProntos=hojeDD_MM_YYYY();
 let _jaNotificados=new Set();
 let _jaNotificadosAdmin=new Set();
 let _pollingInterval=null;
-const PINOS={churrasqueiro:'1234',caixa:'4321'};
+const PINOS={caixa:'4321'};
 
 function renderCatBtns(){
   const cont=document.getElementById('catBtnsContainer');
@@ -584,7 +562,7 @@ function selecionarRole(role){
   const nome=document.getElementById('nomeSection');
   const pin=document.getElementById('pinSenhaSection');
   if(role==='cliente'){nome.classList.remove('hidden');pin.classList.add('hidden');}
-  else{nome.classList.add('hidden');pin.classList.remove('hidden');document.getElementById('pinLabel').textContent=role==='churrasqueiro'?'PIN do Churrasqueiro':'PIN do Caixa';document.getElementById('pinInput').value='';}
+  else{nome.classList.add('hidden');pin.classList.remove('hidden');document.getElementById('pinLabel').textContent='PIN do Caixa';document.getElementById('pinInput').value='';}
 }
 
 function entrar(){
@@ -627,9 +605,8 @@ function entrar(){
   } else {
     const pin=document.getElementById('pinInput').value;
     if(pin!==PINOS[roleAtual]){alert('PIN incorreto!');return;}
-    mostrarTela(roleAtual==='churrasqueiro'?'churrasqueiroScreen':'caixaScreen');
-    if(roleAtual==='churrasqueiro')renderChurrasqueiro();
-    else renderCaixa();
+    mostrarTela('caixaScreen');
+    renderCaixa();
     // Salva sessão
     localStorage.setItem('espetaria_sessao', JSON.stringify({role:roleAtual}));
   }
@@ -834,11 +811,6 @@ function restaurarSessao(){
       iniciarPolling();
       renderCardapio();
 
-    } else if(s.role==='churrasqueiro'){
-      roleAtual='churrasqueiro';
-      mostrarTela('churrasqueiroScreen');
-      renderChurrasqueiro();
-
     } else if(s.role==='caixa'){
       roleAtual='caixa';
       mostrarTela('caixaScreen');
@@ -942,7 +914,7 @@ function renderComanda(){
           <input id="endRef" placeholder="Ponto de referência (opcional)" value="${_enderecoEntrega.ref||''}">
         </div>
       </div>
-      <button class="btn-confirmar" onclick="fazerPedido()">🔥 Enviar Pedido para o Churrasqueiro</button>
+      <button class="btn-confirmar" onclick="fazerPedido()">✅ Enviar Pedido</button>
       <button class="btn-limpar" onclick="limparCarrinho()">🗑️ Limpar seleção</button>
     </div>`;
   }
@@ -953,7 +925,7 @@ function renderComanda(){
     meusPedidos.forEach(p=>{
       const sub=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
       pedidosTotal+=sub;
-      const [bc,bt]=p.status==='aguardando'?['badge-aguard','⏳ Aguardando']:p.status==='fazendo'?['badge-fazendo','🔥 Sendo feito']:['badge-pronto','✅ Pronto!'];
+      const [bc,bt]=p.status==='aguardando'?['badge-aguard','⏳ Aguardando']:['badge-pronto','✅ Pronto!'];
       html+=`<div class="comanda-card">
         <div class="comanda-header">
           <span class="comanda-nome">Pedido #${p.id} · ${p.hora}</span>
@@ -1257,7 +1229,7 @@ function fazerPedido(){
   renderCardapio();
   renderComanda();
   atualizarTotalBar();
-  mostrarToast('🔥 Pedido enviado ao churrasqueiro!');
+  mostrarToast('✅ Pedido enviado!');
 }
 
 function limparCarrinho(){
@@ -1266,103 +1238,48 @@ function limparCarrinho(){
   atualizarTotalBar();
 }
 
-function abaChurras(aba,el){
-  abaChurrasAtiva=aba;
-  document.querySelectorAll('#churrasqueiroScreen .tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  renderChurrasqueiro();
-}
+function renderFilaCaixa(){
+  const ag=PEDIDOS.filter(p=>p.status==='aguardando'&&!p.pago);
+  const pr=PEDIDOS.filter(p=>p.status==='pronto'&&!p.pago);
+  const cont=document.getElementById('caixaPedidos');
+  if(!cont) return;
 
-function renderChurrasqueiro(){
-  const hoje=new Date();
-  const hojeStr=`${String(hoje.getDate()).padStart(2,'0')}-${String(hoje.getMonth()+1).padStart(2,'0')}-${hoje.getFullYear()}`;
-
-  const ag=PEDIDOS.filter(p=>p.status==='aguardando');
-  const fa=PEDIDOS.filter(p=>p.status==='fazendo');
-  const pr=PEDIDOS.filter(p=>p.status==='pronto');
-
-  // Contador de prontos: usa filtro ativo se na aba prontos, senão usa hoje
-  const dataContador=abaChurrasAtiva==='prontos'&&_filtroDataProntos?_filtroDataProntos:hojeStr;
-  const prContador=pr.filter(p=>p.data===dataContador);
-
-  document.getElementById('filaInfo').innerHTML=`
+  const statsHTML=`<div class="fila-info" style="margin-bottom:14px">
     <div class="fila-stat"><div class="fila-n" style="color:#D4A017">${ag.length}</div><div class="fila-l">Aguardando</div></div>
-    <div class="fila-stat"><div class="fila-n" style="color:#FF6B6B">${fa.length}</div><div class="fila-l">Fazendo</div></div>
-    <div class="fila-stat"><div class="fila-n" style="color:#5EFF8C">${prContador.length}</div><div class="fila-l">Prontos${abaChurrasAtiva==='prontos'&&_filtroDataProntos&&_filtroDataProntos!==hojeStr?'<br><span style="font-size:9px">'+_filtroDataProntos+'</span>':' hoje'}</div></div>`;
+    <div class="fila-stat"><div class="fila-n" style="color:#5EFF8C">${pr.length}</div><div class="fila-l">Entregues hoje</div></div>
+  </div>`;
 
-  const mapa={fila:ag,fazendo:fa,prontos:pr};
-  let lista=mapa[abaChurrasAtiva];
-
-  // Filtro de data na aba Prontos — padrão é hoje
-  let filtroHTML='';
-  if(abaChurrasAtiva==='prontos'){
-    const dataFiltro=_filtroDataProntos||hojeStr;
-    const partes=dataFiltro.split('-');
-    const inputVal=partes.length===3?`${partes[2]}-${partes[1]}-${partes[0]}`:'';
-    filtroHTML=`
-      <div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px">
-        <span style="font-size:13px;color:var(--muted);white-space:nowrap">📅 Filtrar por data:</span>
-        <input type="date" value="${inputVal}" onchange="filtrarDataProntos(this.value)"
-          style="flex:1;background:transparent;border:none;color:var(--dourado2);font-size:14px;font-weight:700;outline:none;cursor:pointer">
-        ${_filtroDataProntos&&_filtroDataProntos!==hojeStr?`<button onclick="filtrarDataProntos('')" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;white-space:nowrap">Hoje</button>`:''}
-      </div>`;
-    // Aplica filtro
-    lista=lista.filter(p=>p.data===dataFiltro);
+  const lista=[...ag,...pr];
+  if(lista.length===0){
+    cont.innerHTML=statsHTML+`<div class="empty-state"><div class="empty-icon">🛎️</div><p>Nenhum pedido pendente</p></div>`;
+    return;
   }
 
-  document.getElementById('filaPedidos').innerHTML=filtroHTML+(lista.length===0
-    ?`<div class="empty-state"><div class="empty-icon">${abaChurrasAtiva==='fila'?'⏳':abaChurrasAtiva==='fazendo'?'🔥':'✅'}</div><p>${abaChurrasAtiva==='prontos'&&_filtroDataProntos?'Nenhum pedido pronto em '+_filtroDataProntos:'Nenhum pedido aqui'}</p></div>`
-    :lista.map(p=>{
-      const tipo=p.tipo||'local';
-      const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
-      const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
-      const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
-      const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
-      return `<div class="pedido-card ${cardClass}">
-      <div class="pedido-num">Pedido #${p.id} · ${p.hora}${p.data?' · '+p.data:''}</div>
-      <div style="margin:6px 0"><span class="tipo-badge ${tipoClass}" style="font-size:14px;padding:5px 12px">${tipoEmoji} ${tipoNome}</span></div>
+  cont.innerHTML=statsHTML+lista.map(p=>{
+    const tipo=p.tipo||'local';
+    const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
+    const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
+    const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
+    const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
+    const entregue=p.status==='pronto';
+    return `<div class="pedido-card ${cardClass}" style="${entregue?'opacity:.6':''}">
+      <div class="pedido-num">Pedido #${p.id} · ${p.hora}</div>
+      <div style="margin:6px 0"><span class="tipo-badge ${tipoClass}" style="font-size:13px;padding:4px 10px">${tipoEmoji} ${tipoNome}</span></div>
       <div class="pedido-cliente">${p.cliente}</div>
       ${p.endereco?`<div style="font-size:13px;color:var(--dourado2);margin:6px 0;font-weight:600">📍 ${p.endereco.rua}${p.endereco.bairro?', '+p.endereco.bairro:''}${p.endereco.ref?' · Ref: '+p.endereco.ref:''}</div>`:''}
       <div class="pedido-itens">${p.itens.map(i=>`<div class="pedido-item"><span class="qty">${i.qty}x</span>${i.nome}</div>`).join('')}</div>
       ${p.obs?`<div class="pedido-obs">📝 ${p.obs}</div>`:''}
-      <div class="pedido-actions">
-        ${p.status==='aguardando'?`<button class="btn-status btn-fazer" onclick="mudarStatus(${p.id},'fazendo')">🔥 Começar</button>`:''}
-        ${p.status==='fazendo'?`<button class="btn-status btn-pronto" onclick="mudarStatus(${p.id},'pronto')">✅ Pronto!</button>`:''}
-        ${p.status==='pronto'?`<span style="font-size:13px;color:#5EFF8C;font-weight:700">✅ Entregue!</span>`:''}
+      <div class="pedido-actions" style="margin-top:10px">
+        ${!entregue
+          ?`<button class="btn-status btn-pronto" onclick="entregarPedido('${p.fbKey||p.id}')">✅ Entregar</button>`
+          :`<span style="font-size:13px;color:#5EFF8C;font-weight:700">✅ Entregue</span>`}
       </div>
-    </div>`;}).join(''));
+    </div>`;
+  }).join('');
 }
 
-function filtrarDataProntos(inputVal){
-  if(!inputVal){
-    _filtroDataProntos=''; // volta para hoje (padrão)
-  } else {
-    const [ano,mes,dia]=inputVal.split('-');
-    _filtroDataProntos=`${dia}-${mes}-${ano}`;
-  }
-  renderChurrasqueiro();
-}
-
-function mudarStatus(id,novoStatus){
-  id=Number(id); // garante que é número para comparação
-  if(novoStatus==='fazendo'){
-    const fila=PEDIDOS.filter(p=>p.status==='aguardando').sort((a,b)=>a.id-b.id);
-    const primeiro=fila[0];
-    if(primeiro && primeiro.id !== id){
-      const pedidoAtual=PEDIDOS.find(x=>x.id===id);
-      const ignorar=confirm(
-        `⚠️ Atenção — fora de ordem!\n\n`+
-        `Pedido #${primeiro.id} (${primeiro.hora}) de ${primeiro.cliente} foi solicitado antes.\n\n`+
-        `Tem certeza que quer começar o pedido #${pedidoAtual?.id} de ${pedidoAtual?.cliente} primeiro?\n\n`+
-        `OK para confirmar ou Cancelar para respeitar a fila.`
-      );
-      if(!ignorar) return;
-    }
-  }
-  const p=PEDIDOS.find(x=>Number(x.id)===id);
-  if(p&&p.fbKey){
-    fbUpdate('pedidos/'+p.fbKey,{status:novoStatus});
-  }
+function entregarPedido(fbKey){
+  fbUpdate('pedidos/'+fbKey,{status:'pronto'});
 }
 
 function abrirModalEntregas(){
@@ -1376,7 +1293,7 @@ function abrirModalEntregas(){
       ${entregas.length===0?'<p style="color:var(--muted);text-align:center">Nenhuma entrega ativa.</p>':
         entregas.map(p=>{
           const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
-          const [bc,bt]=p.status==='aguardando'?['badge-aguard','⏳ Aguardando']:p.status==='fazendo'?['badge-fazendo','🔥 Fazendo']:['badge-pronto','✅ Pronto'];
+          const [bc,bt]=p.status==='aguardando'?['badge-aguard','⏳ Aguardando']:['badge-pronto','✅ Entregue'];
           return `<div style="background:var(--superficie);border:1px solid #F0C040;border-radius:12px;padding:14px;margin-bottom:12px">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
               <span style="font-weight:700;color:var(--dourado2)">Pedido #${p.id} · ${p.hora}</span>
@@ -1409,15 +1326,16 @@ function abaCaixa(aba,el){
   abaCaixaAtiva=aba;
   document.querySelectorAll('#caixaScreen .tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
+  document.getElementById('caixaPedidos').classList.toggle('hidden',aba!=='pedidos');
   document.getElementById('caixaResumo').classList.toggle('hidden',aba!=='resumo');
   document.getElementById('caixaClientes').classList.toggle('hidden',aba!=='clientes');
   document.getElementById('caixaCardapio').classList.toggle('hidden',aba!=='cardapio');
   document.getElementById('caixaHistorico').classList.toggle('hidden',aba!=='historico');
-  // Rodapé só aparece em clientes e historico
-  document.getElementById('caixaRodape').classList.toggle('hidden',aba==='resumo'||aba==='cardapio');
+  document.getElementById('caixaRodape').classList.toggle('hidden',aba==='resumo'||aba==='cardapio'||aba==='pedidos');
   if(aba==='cardapio') renderCardapioCaixa();
   else if(aba==='clientes'){ _filtroResumo=null; renderCaixaClientes(); }
   else if(aba==='historico') renderHistorico();
+  else if(aba==='pedidos') renderFilaCaixa();
   else { _filtroResumo=null; renderCaixa(); }
 }
 
@@ -1508,7 +1426,7 @@ function renderCaixa(){
         ? renderComandasAbertas(lista)
         : lista.map(p=>{
             const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
-            const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:p.status==='fazendo'?['badge-fazendo','Fazendo']:['badge-pronto','Pronto'];
+            const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:['badge-pronto','Entregue'];
             const tipo=p.tipo||'local';
             const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
             const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
@@ -1537,6 +1455,7 @@ function renderCaixa(){
 
   renderCaixaClientes();
   atualizarBadgeCaixa();
+  if(abaCaixaAtiva==='pedidos') renderFilaCaixa();
 }
 
 function mudarDataCaixa(inputVal){
