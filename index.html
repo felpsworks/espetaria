@@ -1364,6 +1364,34 @@ function renderComandasAbertas(lista){
   }).join('');
 }
 
+function renderClientesResumo(pedidos){
+  // Agrupa por clienteId
+  const mapa={};
+  pedidos.forEach(p=>{
+    if(!mapa[p.clienteId]) mapa[p.clienteId]={nome:p.cliente,peds:[],pago:p.pago,pagamento:p.pagamento};
+    mapa[p.clienteId].peds.push(p);
+    if(p.pago) mapa[p.clienteId].pago=true;
+  });
+  return Object.entries(mapa).map(([cid,cl])=>{
+    const total=cl.peds.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
+    const qtdPedidos=cl.peds.length;
+    const todosPagos=cl.peds.every(p=>p.pago);
+    const pagamento=cl.peds.find(p=>p.pagamento)?.pagamento||'';
+    return `<div class="cliente-row" onclick="verCliente('${cid}')">
+      <div class="cliente-row-top">
+        <span class="cliente-rname">👤 ${cl.nome}</span>
+        <span class="cliente-rval">R$ ${total.toFixed(2).replace('.',',')}</span>
+      </div>
+      <div class="cliente-rsub" style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <span>${qtdPedidos} pedido${qtdPedidos!==1?'s':''}</span>
+        ${todosPagos
+          ?`<span class="tag-pago">PAGO${pagamento?' · '+pagamento:''}</span>`
+          :`<span style="background:#3d1a00;color:var(--dourado2);padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700">CONSUMINDO</span>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderCaixa(){
   // Data de referência
   const agora=new Date();
@@ -1424,25 +1452,7 @@ function renderCaixa(){
       ?`<div class="empty-state"><div class="empty-icon">📋</div><p>Nenhum pedido em ${dataRef}</p></div>`
       :(_filtroResumo==='aberto'
         ? renderComandasAbertas(lista)
-        : lista.map(p=>{
-            const tot=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);
-            const[bc,bt]=p.status==='aguardando'?['badge-aguard','Aguard.']:['badge-pronto','Entregue'];
-            const tipo=p.tipo||'local';
-            const tipoEmoji={'local':'🪑','entrega':'🛵','viagem':'🥡'}[tipo]||'🪑';
-            const tipoNome={'local':'Local','entrega':'Entrega','viagem':'Retirada'}[tipo]||'Local';
-            const cardClass=tipo==='entrega'?'card-entrega':tipo==='viagem'?'card-viagem':'';
-            const tipoClass={'local':'tipo-local','entrega':'tipo-entrega','viagem':'tipo-viagem'}[tipo]||'tipo-local';
-            return '<div class="comanda-card '+cardClass+'" style="margin-bottom:8px">'+
-              '<div style="margin-bottom:4px"><span class="tipo-badge '+tipoClass+'" style="font-size:13px;padding:4px 10px">'+tipoEmoji+' '+tipoNome+'</span></div>'+
-              '<div class="comanda-header">'+
-                '<span class="comanda-nome">'+p.cliente+'</span>'+
-                (p.pago?'<span class="tag-pago">PAGO'+(p.pagamento?' · '+p.pagamento:'')+'</span>':'<span class="badge '+bc+'">'+bt+'</span>')+
-              '</div>'+
-              '<div style="font-size:12px;color:var(--muted)">#'+p.id+' · '+p.hora+' · '+p.itens.length+' item(ns)</div>'+
-              (p.endereco?'<div style="font-size:11px;color:var(--dourado2);margin-top:2px">📍 '+p.endereco.rua+(p.endereco.bairro?', '+p.endereco.bairro:'')+'</div>':'')+
-              '<div style="font-size:14px;font-weight:700;color:var(--dourado2);margin-top:6px">R$ '+tot.toFixed(2).replace('.',',')+'</div>'+
-            '</div>';
-          }).join('')
+        : renderClientesResumo(lista)
       )}`;
 
   if(_filtroResumo!==null){
