@@ -458,8 +458,8 @@ function registrarListeners(){
       pedidoIdSeq=maxId+1;
     }
     if(roleAtual==='cliente'){ renderComanda(); verificarNotificacoes(); }
-    if(roleAtual==='churrasqueiro') renderChurrasqueiro();
-    if(roleAtual==='caixa'){ renderCaixa(); atualizarBadgeCaixa(); }
+    if(roleAtual==='churrasqueiro'){ renderChurrasqueiro(); verificarNotificacoesAdmin(); }
+    if(roleAtual==='caixa'){ renderCaixa(); atualizarBadgeCaixa(); verificarNotificacoesAdmin(); }
     abrirApp();
   }, err=>{ console.error('pedidos',err); abrirApp(); });
 
@@ -492,6 +492,19 @@ function verificarNotificacoes(){
 
 
 
+function verificarNotificacoesAdmin(){
+  if(roleAtual!=='churrasqueiro'&&roleAtual!=='caixa') return;
+  const novos=PEDIDOS.filter(p=>p.status==='aguardando'&&!p.pago);
+  novos.forEach(p=>{
+    const pid=p.fbKey||p.id;
+    if(!_jaNotificadosAdmin.has(pid)){
+      _jaNotificadosAdmin.add(pid);
+      const quem=p.cliente||'Cliente';
+      mostrarToast('🛎️ Novo pedido de '+quem+'!');
+    }
+  });
+}
+
 // ── Configuração Firebase (quintal-na-brasa) ─────────────────────────────
 const _FB_CONFIG = {
   apiKey:            "AIzaSyBGRL-vdzjfIlMPWNFWZoB40K2W-26Nc-A",
@@ -516,6 +529,7 @@ function hojeDD_MM_YYYY(){
 }
 let _filtroDataProntos=hojeDD_MM_YYYY();
 let _jaNotificados=new Set();
+let _jaNotificadosAdmin=new Set();
 let _pollingInterval=null;
 const PINOS={churrasqueiro:'1234',caixa:'4321'};
 
@@ -764,6 +778,7 @@ function sair(){
   carrinho={};
   clienteAbaAtiva='cardapio';
   _jaNotificados=new Set();
+  _jaNotificadosAdmin=new Set();
   document.getElementById('pinSection').classList.add('hidden');
   document.getElementById('nomeSection').classList.add('hidden');
   document.getElementById('pinSenhaSection').classList.add('hidden');
@@ -1656,8 +1671,8 @@ function renderCardapioCaixa(){
           <div class="prod-price">R$ ${p.preco.toFixed(2).replace('.',',')} · <span style="color:var(--muted);font-weight:400">${CATEGORIAS.find(c=>c.id===p.cat)?.nome||p.cat}</span></div>
         </div>
         <div class="prod-actions">
-          <button class="btn-edit" onclick="abrirModalProduto(${p.id})">✏️ Editar</button>
-          <button class="btn-del" onclick="excluirProduto(${p.id})">🗑️ Excluir</button>
+          <button class="btn-edit" onclick="abrirModalProduto('${p.id}')">✏️ Editar</button>
+          <button class="btn-del" onclick="excluirProduto('${p.id}')">🗑️ Excluir</button>
         </div>
       </div>`).join('')}`;
 }
