@@ -1130,12 +1130,14 @@ function renderCaixaClientes(){
     const tot=ped.reduce((s,p)=>s+p.itens.reduce((ss,i)=>ss+i.preco*i.qty,0),0);
     const pago=ped.every(p=>p.pago);
     const temSolicitacao=SOLICITACOES.some(s=>s.clienteId===cid);
+    const celFmt=cid.length>=10?`(${cid.slice(0,2)}) ${cid.slice(2,7)}-${cid.slice(7)}`:'';
     return `<div class="cliente-row" onclick="verCliente('${cid}')">
       <div class="cliente-row-top">
         <span class="cliente-rname">${nome}</span>
         <span class="cliente-rval" ${pago?'style="color:#5EFF8C"':''}>R$ ${tot.toFixed(2).replace('.',',')}</span>
       </div>
-      <div class="cliente-rsub" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${celFmt?`<div style="font-size:11px;color:var(--muted);margin-top:2px">📱 ${celFmt}</div>`:''}
+      <div class="cliente-rsub" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px">
         <span>${ped.length} pedido(s)</span>
         ${pago?'<span style="background:#004A1A;color:#5EFF8C;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">✅ PAGO</span>':''}
         ${!pago && temSolicitacao?'<span style="background:#4A3000;color:#F0C040;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;border:1px solid #F0C040">💳 AGUARDANDO PAGAMENTO</span>':''}
@@ -1377,11 +1379,13 @@ function renderClientesResumo(pedidos){
     const qtdPedidos=cl.peds.length;
     const todosPagos=cl.peds.every(p=>p.pago);
     const pagamento=cl.peds.find(p=>p.pagamento)?.pagamento||'';
+    const celFmt=cid.length>=10?`(${cid.slice(0,2)}) ${cid.slice(2,7)}-${cid.slice(7)}`:'';
     return `<div class="cliente-row" onclick="verCliente('${cid}')">
       <div class="cliente-row-top">
         <span class="cliente-rname">👤 ${cl.nome}</span>
         <span class="cliente-rval">R$ ${total.toFixed(2).replace('.',',')}</span>
       </div>
+      ${celFmt?`<div style="font-size:11px;color:var(--muted);margin-top:2px">📱 ${celFmt}</div>`:''}
       <div class="cliente-rsub" style="display:flex;align-items:center;gap:8px;margin-top:4px">
         <span>${qtdPedidos} pedido${qtdPedidos!==1?'s':''}</span>
         ${todosPagos
@@ -1486,8 +1490,12 @@ function verCliente(cid){
   const dataRef=_filtroDataCaixa||hojeStr;
   const ped=PEDIDOS.filter(p=>p.clienteId===cid&&p.data===dataRef);
   const nome=ped[0]?.cliente||cid;
+  const celFmt=cid.length>=10?`(${cid.slice(0,2)}) ${cid.slice(2,7)}-${cid.slice(7)}`:cid;
   let tot=0;
-  document.getElementById('modalTitle').textContent='👤 '+nome;
+  document.getElementById('modalTitle').innerHTML=
+    `👤 ${nome}<div style="font-size:12px;color:var(--muted);font-weight:400;margin-top:2px">📱 ${celFmt}
+      <button onclick="abrirEdicaoCelular('${cid}')" style="margin-left:8px;font-size:11px;background:var(--superficie);border:1px solid var(--border);border-radius:6px;color:var(--muted);padding:2px 8px;cursor:pointer">✏️ Editar</button>
+    </div>`;
   document.getElementById('modalConteudo').innerHTML=ped.map(p=>{
     const sub=p.itens.reduce((s,i)=>s+i.preco*i.qty,0);tot+=sub;
     return `<div class="comanda-card" style="margin-bottom:8px">
@@ -1498,6 +1506,45 @@ function verCliente(cid){
   }).join('')+`<div class="total-geral-box"><span class="total-geral-label">Total</span><span class="total-geral-valor">R$ ${tot.toFixed(2).replace('.',',')}</span></div>`;
   document.getElementById('modalOverlay').classList.remove('hidden');
   window._modalClienteId=cid;
+}
+
+function abrirEdicaoCelular(cidAtual){
+  const overlay=document.createElement('div');
+  overlay.className='modal-prod-overlay';
+  overlay.id='modalEditCelOverlay';
+  const celFmt=cidAtual.length>=10?`(${cidAtual.slice(0,2)}) ${cidAtual.slice(2,7)}-${cidAtual.slice(7)}`:cidAtual;
+  const nome=PEDIDOS.find(p=>p.clienteId===cidAtual)?.cliente||'';
+  overlay.innerHTML=`
+    <div class="modal-prod-box">
+      <div class="modal-title">📱 Editar Celular</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Cliente: <strong style="color:var(--texto)">${nome}</strong></p>
+      <label class="form-label">Celular atual</label>
+      <div style="font-size:14px;color:var(--dourado2);font-weight:700;margin-bottom:12px">${celFmt}</div>
+      <label class="form-label">Novo celular</label>
+      <input class="form-input" id="novoCelInput" type="tel" placeholder="(11) 99999-9999" maxlength="15" oninput="formatarCelular(this)">
+      <button class="btn-salvar" onclick="confirmarEdicaoCelular('${cidAtual}')">✅ Salvar</button>
+      <button class="btn-cancelar" onclick="document.getElementById('modalEditCelOverlay').remove()">Cancelar</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function confirmarEdicaoCelular(cidAntigo){
+  const novoCel=document.getElementById('novoCelInput').value.replace(/\D/g,'');
+  if(novoCel.length<10){alert('Digite um celular válido!');return;}
+  if(novoCel===cidAntigo){alert('O celular é o mesmo!');return;}
+  const pedidosCliente=PEDIDOS.filter(p=>p.clienteId===cidAntigo);
+  if(pedidosCliente.length===0){alert('Nenhum pedido encontrado.');return;}
+  // Atualiza clienteId em todos os pedidos
+  pedidosCliente.forEach(p=>{
+    if(p.fbKey) fbUpdate('pedidos/'+p.fbKey,{clienteId:novoCel});
+  });
+  // Atualiza cadastro de clientes
+  const nome=pedidosCliente[0]?.cliente||'';
+  if(nome) fbSet('clientes/'+novoCel, nome);
+  fbRemove('clientes/'+cidAntigo);
+  document.getElementById('modalEditCelOverlay').remove();
+  fecharModal();
+  mostrarToast('✅ Celular atualizado com sucesso!');
 }
 
 function fecharConta(){
